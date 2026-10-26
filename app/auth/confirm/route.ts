@@ -6,25 +6,35 @@ import { type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/";
+  const candidate = searchParams.get("type");
+  const allowedTypes: EmailOtpType[] = [
+    "invite",
+    "recovery",
+    "email",
+    "email_change",
+    "signup",
+  ];
+  const type = allowedTypes.find((value) => value === candidate);
+  const destination =
+    type === "invite" || type === "recovery"
+      ? "/auth/update-password"
+      : "/dashboard";
 
   if (token_hash && type) {
-    const supabase = await createClient();
-
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash,
-    });
-    if (!error) {
-      // redirect user to specified redirect URL or root of app
-      redirect(next);
+    let verified = false;
+    try {
+      const supabase = await createClient();
+      const { error } = await supabase.auth.verifyOtp({ type, token_hash });
+      verified = !error;
+    } catch {
+      verified = false;
+    }
+    if (verified) {
+      redirect(destination);
     } else {
-      // redirect the user to an error page with some instructions
-      redirect(`/auth/error?error=${error?.message}`);
+      redirect("/auth/error");
     }
   }
 
-  // redirect the user to an error page with some instructions
-  redirect(`/auth/error?error=No token hash or type`);
+  redirect("/auth/error");
 }

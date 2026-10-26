@@ -28,6 +28,7 @@ export function ForgotPasswordForm({
     e: React.SubmitEvent<HTMLFormElement>,
   ) => {
     e.preventDefault();
+    if (isLoading) return;
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
@@ -35,12 +36,14 @@ export function ForgotPasswordForm({
     try {
       // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       });
       if (error) throw error;
       setSuccess(true);
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+    } catch {
+      setError(
+        "Permintaan belum dapat diproses. Tunggu beberapa saat lalu coba kembali.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -51,23 +54,30 @@ export function ForgotPasswordForm({
       {success ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Check Your Email</CardTitle>
-            <CardDescription>Password reset instructions sent</CardDescription>
+            <CardTitle className="text-2xl">Periksa email Anda</CardTitle>
+            <CardDescription>
+              Permintaan pemulihan telah diproses.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive
-              a password reset email.
+              Jika email terdaftar, Anda akan menerima tautan pemulihan kata
+              sandi.
             </p>
+            <Link
+              href="/auth/login"
+              className="mt-3 inline-flex min-h-11 items-center text-sm text-accent underline underline-offset-4"
+            >
+              Kembali ke login
+            </Link>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+            <CardTitle className="text-2xl">Pulihkan kata sandi</CardTitle>
             <CardDescription>
-              Type in your email and we&apos;ll send you a link to reset your
-              password
+              Masukkan email akun yang didaftarkan oleh Admin Dinas.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -78,22 +88,31 @@ export function ForgotPasswordForm({
                   <Input
                     id="email"
                     type="email"
-                    placeholder="m@example.com"
+                    autoComplete="email"
+                    className="min-h-11"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Sending..." : "Send reset email"}
+                {error && (
+                  <p role="alert" className="text-sm text-red-800">
+                    {error}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  className="min-h-11 w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Mengirim..." : "Kirim tautan pemulihan"}
                 </Button>
               </div>
               <div className="mt-4 text-center text-sm">
-                Already have an account?{" "}
+                Sudah dapat masuk?{" "}
                 <Link
                   href="/auth/login"
-                  className="underline underline-offset-4"
+                  className="inline-flex min-h-11 items-center underline underline-offset-4"
                 >
                   Login
                 </Link>

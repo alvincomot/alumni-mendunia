@@ -20,6 +20,7 @@ export function UpdatePasswordForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -28,6 +29,13 @@ export function UpdatePasswordForm({
     e: React.SubmitEvent<HTMLFormElement>,
   ) => {
     e.preventDefault();
+    if (isLoading) return;
+    if (password.length < 12 || password !== confirmation) {
+      setError(
+        "Gunakan minimal 12 karakter dan pastikan kedua kata sandi sama.",
+      );
+      return;
+    }
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
@@ -35,10 +43,12 @@ export function UpdatePasswordForm({
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      router.replace("/dashboard");
+      router.refresh();
+    } catch {
+      setError(
+        "Kata sandi belum dapat diperbarui. Periksa ketentuan kata sandi atau minta tautan pemulihan baru.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -48,28 +58,52 @@ export function UpdatePasswordForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+          <CardTitle className="text-2xl">Atur kata sandi</CardTitle>
           <CardDescription>
-            Please enter your new password below.
+            Gunakan minimal 12 karakter. Jangan gunakan kata sandi dari layanan
+            lain.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleForgotPassword}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="password">New password</Label>
+                <Label htmlFor="password">Kata sandi baru</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="New password"
+                  autoComplete="new-password"
+                  minLength={12}
+                  className="min-h-11"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save new password"}
+              <div className="grid gap-2">
+                <Label htmlFor="confirmation">Ulangi kata sandi baru</Label>
+                <Input
+                  id="confirmation"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={12}
+                  required
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  className="min-h-11"
+                />
+              </div>
+              {error && (
+                <p role="alert" className="text-sm text-red-800">
+                  {error}
+                </p>
+              )}
+              <Button
+                type="submit"
+                className="min-h-11 w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? "Menyimpan..." : "Simpan kata sandi"}
               </Button>
             </div>
           </form>

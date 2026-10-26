@@ -1,51 +1,24 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Suspense } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-async function ErrorContent({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
-  const params = await searchParams;
-
+export default function Page() {
   return (
-    <>
-      {params?.error ? (
-        <p className="text-sm text-muted-foreground">
-          Code error: {params.error}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          An unspecified error occurred.
-        </p>
-      )}
-    </>
-  );
-}
-
-export default function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
-  return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Sorry, something went wrong.
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense>
-                <ErrorContent searchParams={searchParams} />
-              </Suspense>
-            </CardContent>
-          </Card>
-        </div>
+    <main className="mx-auto max-w-lg px-5 py-16">
+      <h1 className="text-2xl font-semibold text-primary">
+        Tautan tidak dapat digunakan
+      </h1>
+      <p className="my-5 leading-7">
+        Tautan mungkin sudah digunakan atau kedaluwarsa. Minta tautan pemulihan
+        baru, atau hubungi Admin Dinas untuk undangan akun.
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <Button asChild className="min-h-11">
+          <Link href="/auth/forgot-password">Pulihkan kata sandi</Link>
+        </Button>
+        <Button asChild variant="outline" className="min-h-11">
+          <Link href="/auth/login">Kembali ke login</Link>
+        </Button>
       </div>
-    </div>
+    </main>
   );
 }
