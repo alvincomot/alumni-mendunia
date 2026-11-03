@@ -344,13 +344,20 @@ function userHarness(options = {}) {
       listAuthUsers: async () =>
         config.existing ? [{ id: otherId, email: "fiktif@example.test" }] : [],
     },
+    "@/lib/auth/auth-flow-context": {
+      withAuthFlowContext: (destination, context) => {
+        const url = new URL(destination);
+        url.searchParams.set("auth_context", context);
+        return url.toString();
+      },
+    },
     "next/cache": { revalidatePath: (...args) => invalidated.push(args) },
   })("app/dashboard/users/actions.ts");
   return { ...actions, config, writes, privileged, invalidated };
 }
 const invitation = {
   email: "fiktif@example.test",
-  profile: input,
+  profile: { ...input, role: "viewer_dinas", school_id: "" },
   recover: false,
 };
 
@@ -381,7 +388,7 @@ test("profile edits reject own demotion/deactivation and inactive schools", asyn
     assert.equal(h.writes.length, 0);
   }
   const inactive = userHarness({ schoolInactive: true });
-  assert.equal((await inactive.inviteUser(invitation)).success, false);
+  assert.equal((await inactive.inviteUser({ ...invitation, profile: input, recover: true })).success, false);
   assert.equal((await inactive.saveUserProfile(otherId, input)).success, false);
   assert.equal(inactive.privileged.length, 0);
 });
@@ -409,13 +416,16 @@ test("invitation uses verified server flow and profile INSERT without passwords"
   assert.equal((await h.inviteUser(invitation)).success, true);
   assert.deepEqual(h.privileged[1], {
     email: invitation.email,
-    options: { redirectTo: "https://prototype.example/auth/confirm" },
+    options: {
+      redirectTo:
+        "https://prototype.example/auth/confirm?auth_context=dinas_invitation",
+    },
   });
   assert.deepEqual(h.writes, [
     {
       table: "profiles",
       type: "insert",
-      values: { user_id: otherId, ...input },
+      values: { user_id: otherId, ...invitation.profile, school_id: null },
     },
   ]);
 });
@@ -593,13 +603,24 @@ test("Dinas export filters authorized results and disables caching", async () =>
 test("email confirmation ignores external destinations and invalid OTP types", async () => {
   let calls = 0;
   const route = loader({
+    "@/lib/auth/school-auth-diagnostics": {
+      schoolAuthCorrelationId: () => "00000000-0000-4000-8000-000000000099",
+      logSchoolAuthFailure: () => {},
+    },
     "@/lib/supabase/server": {
       createClient: async () => ({
         auth: {
           verifyOtp: async () => {
             calls++;
-            return { error: null };
+            return {
+              data: { session: {}, user: { id: "verified-fictional-user" } },
+              error: null,
+            };
           },
+          getUser: async () => ({
+            data: { user: { id: "verified-fictional-user" } },
+            error: null,
+          }),
         },
       }),
     },
@@ -634,4 +655,18 @@ test("email confirmation ignores external destinations and invalid OTP types", a
     /redirect:\/auth\/error/,
   );
   assert.equal(calls, 2);
+});
+
+test("manual school invitations are blocked before Auth while explicit orphan recovery remains available", async () => {
+  const manual = userHarness();
+  assert.equal((await manual.inviteUser({ ...invitation, profile: input })).success, false);
+  assert.deepEqual(manual.privileged, []);
+  assert.deepEqual(manual.writes, []);
+  const recover = userHarness({ existing: true });
+  assert.equal((await recover.inviteUser({ ...invitation, profile: input, recover: true })).success, true);
+  assert.deepEqual(recover.privileged, ["createClient"]);
+  assert.deepEqual(recover.writes, [{ table: "profiles", type: "insert", values: { user_id: otherId, ...input } }]);
+  const missing = userHarness();
+  assert.equal((await missing.inviteUser({ ...invitation, profile: input, recover: true })).success, false);
+  assert.deepEqual(missing.writes, []);
 });
