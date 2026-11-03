@@ -1,0 +1,124 @@
+<!DOCTYPE html><html lang="id" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Login - Alumni Mendunia SMK</title>
+<!-- Tailwind CSS v3 with forms and container-queries plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style data-purpose="typography">
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 antialiased h-screen overflow-hidden">
+<!-- BEGIN: MainContainer -->
+<main class="flex h-screen w-full" data-purpose="split-screen-layout">
+<!-- BEGIN: LeftBrandSide -->
+<section class="hidden lg:flex lg:w-7/12 bg-[#0d2137] text-white flex-col justify-between p-12 relative overflow-hidden" data-purpose="brand-sidebar">
+<!-- Decorative background glow elements -->
+<div aria-hidden="true" class="absolute -top-32 -left-32 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+<div aria-hidden="true" class="absolute -bottom-32 -right-32 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+<!-- Top Branding -->
+<!-- Center Hero Content -->
+<div class="relative z-10 max-w-xl my-auto" data-purpose="brand-hero">
+<h1 class="text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-6">
+          Pendataan alumni yang bekerja di luar negeri.
+        </h1>
+<p class="text-lg text-gray-300 font-normal leading-relaxed">
+          Akses terbatas untuk petugas sekolah dan pengguna Dinas Pendidikan Provinsi DKI Jakarta.
+        </p>
+</div>
+<!-- Footer Info -->
+<div class="relative z-10 text-xs text-gray-400 font-medium" data-purpose="brand-footer">
+        © 2026 Dinas Pendidikan Provinsi DKI Jakarta. All Rights Reserved.</div>
+</section>
+<!-- END: LeftBrandSide -->
+<!-- BEGIN: RightFormSide -->
+<section class="w-full lg:w-5/12 flex items-center justify-center p-6 sm:p-12 bg-white" data-purpose="login-form-container">
+<div class="w-full max-w-md space-y-8">
+<!-- Mobile Header (Visible only on small screens) -->
+<div class="lg:hidden mb-8" data-purpose="mobile-brand-header">
+<span class="text-xs font-semibold tracking-wider text-cyan-600 uppercase">Alumni Mendunia SMK</span>
+<h1 class="text-2xl font-bold text-gray-900 mt-1">Masuk ke sistem</h1>
+<div class="h-1 w-8 bg-cyan-500 rounded-full mt-2"></div>
+</div>
+<!-- Desktop Form Header -->
+<div class="hidden lg:block space-y-2">
+<h2 class="text-3xl font-bold tracking-tight text-gray-900" id="login-title">Masuk ke sistem</h2>
+<p class="text-sm text-gray-500" id="login-subtitle">Gunakan akun yang telah dibuat oleh Dinas.</p></div>
+<!-- BEGIN: LoginForm -->
+<form action="#" class="mt-8 space-y-6" data-purpose="authentication-form" method="POST"><div class="space-y-4"><div class="hidden lg:flex rounded-xl bg-gray-100 p-1 mb-6" data-purpose="login-type-toggle"><button class="flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-gray-900 shadow-sm transition-all" id="tab-sekolah" onclick="switchLoginType('sekolah')" type="button">Sekolah</button><button class="flex-1 py-2 text-sm font-semibold rounded-lg text-gray-500 hover:text-gray-900 transition-all" id="tab-dinas" onclick="switchLoginType('dinas')" type="button">Dinas</button></div>
+<div id="field-container">
+<label class="block text-sm font-semibold text-gray-700 mb-1" for="npsn" id="input-label">NPSN</label>
+<input autocomplete="email" class="w-full px-4 py-3 text-gray-900 bg-white border border-gray-300 rounded-xl shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm transition-all" id="email" name="email" placeholder="nama@sekolah.sch.id" required="" type="email">
+</div>
+<div>
+<div class="flex items-center justify-between mb-1">
+<label class="block text-sm font-semibold text-gray-700" for="password">Kata sandi</label>
+</div>
+<input autocomplete="current-password" class="w-full px-4 py-3 text-gray-900 bg-white border border-gray-300 rounded-xl shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm transition-all" id="password" name="password" placeholder="••••••••" required="" type="password">
+</div>
+</div>
+<div class="flex items-center justify-end">
+<div class="text-sm">
+<a class="font-medium text-cyan-600 hover:text-cyan-500 transition-colors" href="#">
+                Lupa kata sandi?
+              </a>
+</div>
+</div>
+<div>
+<button class="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-[#00828a] hover:bg-[#006d75] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 transition-all duration-150" data-purpose="submit-button" type="submit">
+              Masuk
+            </button>
+</div>
+<script>
+function switchLoginType(type) {
+  const tabSekolah = document.getElementById('tab-sekolah');
+  const tabDinas = document.getElementById('tab-dinas');
+  const inputLabel = document.getElementById('input-label');
+  const loginInput = document.getElementById('login-input');
+  const loginTitle = document.getElementById('login-title');
+  const loginSubtitle = document.getElementById('login-subtitle');
+  if (type === 'sekolah') {
+    tabSekolah.className = 'flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-gray-900 shadow-sm transition-all';
+    tabDinas.className = 'flex-1 py-2 text-sm font-semibold rounded-lg text-gray-500 hover:text-gray-900 transition-all';
+    inputLabel.textContent = 'NPSN';
+    inputLabel.setAttribute('for', 'npsn');
+    loginInput.id = 'npsn';
+    loginInput.name = 'npsn';
+    loginInput.type = 'text';
+    loginInput.placeholder = 'Masukkan nomor NPSN sekolah';
+    loginInput.autocomplete = 'off';
+    loginTitle.textContent = 'Masuk Portal Sekolah';
+    loginSubtitle.textContent = 'Gunakan NPSN resmi sekolah terdaftar.';
+  } else {
+    tabDinas.className = 'flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-gray-900 shadow-sm transition-all';
+    tabSekolah.className = 'flex-1 py-2 text-sm font-semibold rounded-lg text-gray-500 hover:text-gray-900 transition-all';
+    inputLabel.textContent = 'Email';
+    inputLabel.setAttribute('for', 'email');
+    loginInput.id = 'email';
+    loginInput.name = 'email';
+    loginInput.type = 'email';
+    loginInput.placeholder = 'nama@sekolah.sch.id';
+    loginInput.autocomplete = 'email';
+    loginTitle.textContent = 'Masuk ke sistem';
+    loginSubtitle.textContent = 'Gunakan akun yang telah dibuat oleh Dinas.';
+  }
+}
+</script></form>
+<!-- END: LoginForm -->
+<!-- Form Footer -->
+<div class="text-center pt-4">
+</div>
+</div>
+</section>
+<!-- END: RightFormSide -->
+</main>
+<!-- END: MainContainer -->
+
+
+</body></html>

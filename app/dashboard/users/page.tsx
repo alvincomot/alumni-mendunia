@@ -25,7 +25,26 @@ export default async function UsersPage({
       typeof raw[key] === "string" ? raw[key].slice(0, 150) : "",
     ]),
   );
-  const [profiles, schools] = await Promise.all([
+  let invitationProblem: string | null = null;
+  try {
+    invitationRedirect();
+  } catch (error) {
+    invitationProblem = administrationMessage(error);
+  }
+  const directoryPromise = (async () => {
+    try {
+      return {
+        users: await listAuthUsers(createAdminClient()),
+        problem: null as string | null,
+      };
+    } catch (error) {
+      return {
+        users: [] as { id: string; email?: string }[],
+        problem: administrationMessage(error),
+      };
+    }
+  })();
+  const [profiles, schools, directory] = await Promise.all([
     readAllRows<UserProfile>((start, end) =>
       access.supabase
         .from("profiles")
@@ -43,20 +62,10 @@ export default async function UsersPage({
           .order("id")
           .range(start, end),
     ),
+    directoryPromise,
   ]);
-  let directoryProblem: string | null = null;
-  let invitationProblem: string | null = null;
-  let authUsers: { id: string; email?: string }[] = [];
-  try {
-    authUsers = await listAuthUsers(createAdminClient());
-  } catch (error) {
-    directoryProblem = administrationMessage(error);
-  }
-  try {
-    invitationRedirect();
-  } catch (error) {
-    invitationProblem = administrationMessage(error);
-  }
+  const directoryProblem = directory.problem;
+  const authUsers = directory.users;
   const authAvailable = directoryProblem === null;
   const emails = new Map(
     authUsers.map((user) => [user.id, user.email ?? "Email tidak tersedia"]),
@@ -97,7 +106,7 @@ export default async function UsersPage({
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-primary">
+          <h1 className="type-page-title text-primary">
             Manajemen Pengguna
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -177,7 +186,7 @@ export default async function UsersPage({
           role="region"
           aria-label="Daftar pengguna"
           tabIndex={0}
-          className="overflow-x-auto rounded-lg border bg-white"
+          className="min-w-0 overflow-x-auto rounded-xl border bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
           <table className="w-full min-w-[850px] text-left text-sm">
             <caption className="sr-only">Profil dan penugasan pengguna</caption>

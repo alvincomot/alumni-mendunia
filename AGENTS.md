@@ -128,6 +128,23 @@ Untuk pekerjaan antarmuka:
 Jangan mengabaikan mode dan aturan penggunaan
 yang ditetapkan oleh skill Anti-Slop.
 
+## Page and Loading Conventions
+
+- Keep the authenticated dashboard shell mounted during route navigation.
+- Add the narrowest practical `loading.tsx` boundary for each route shape.
+- Reuse primitives from `components/ui/loading/`; do not ship text-only loading pages.
+- Match skeletons to the real page structure without fake data or enabled controls.
+- Use `PageSkeleton` for headings, `TableSkeleton` for lists, `FormSkeleton`
+  for forms, `DetailSkeleton` for records, and `DashboardSkeleton` for monitoring.
+- Loading regions must expose an Indonesian status, use `aria-busy`, hide
+  decorative placeholders, and respect reduced-motion preferences.
+- Keep form values visible until success and use `LoadingIndicator` inside
+  pending action buttons. Empty and error states must replace skeletons once
+  a request completes.
+- New dashboard pages should use the existing full-width content wrapper,
+  subtle borders, `rounded-xl` surfaces, minimal shadows, and the shared
+  navy/teal palette.
+
 ## Coding Standards
 
 - Gunakan TypeScript dengan tipe yang jelas.
@@ -282,3 +299,37 @@ Before suggesting a Git commit:
 5. Suggest a Conventional Commit message in English.
 6. Use the format: type: short description.
 7. Do not commit or push without user approval.
+
+
+## Design Reference Structure
+
+Google Stitch design references are organized by page
+or feature under `design-reference/`.
+
+Examples:
+
+- `design-reference/dashboard/`
+- `design-reference/login/`
+- `design-reference/alumni/`
+- `design-reference/schools/`
+- `design-reference/users/`
+- `design-reference/reports/`
+
+Each reference folder may contain:
+
+- `screen.png` — Primary visual reference.
+- `code.html` — Exported HTML and CSS.
+- `DESIGN.md` — Page-specific design specifications.
+
+When implementing or redesigning a page:
+
+1. Locate its matching folder under `design-reference/`.
+2. Read available design files before editing the UI.
+3. Prioritize visual fidelity to the reference screenshot.
+4. Convert exported HTML into reusable React components.
+5. Preserve existing functionality and authorization.
+6. Do not invent missing reference files.
+7. Do not modify unrelated pages or backend logic.
+8. Use the root `DESIGN.md` for shared design conventions.
+9. Use page-specific `DESIGN.md` for page-level styling.
+10. Keep design-reference files separate from production code.

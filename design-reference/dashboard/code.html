@@ -1,0 +1,373 @@
+<!DOCTYPE html><html lang="en" style="width: 1280px; height: 1256px; overflow: hidden; position: relative;"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_dashboard" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;font-family:'Plus Jakarta Sans',sans-serif;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "inverse-surface": "#2d3133",
+          "on-error": "#ffffff",
+          "on-tertiary-fixed-variant": "#005137",
+          "surface-container-low": "#f2f4f6",
+          "secondary-fixed": "#dbe1ff",
+          "background": "#f7f9fb",
+          "on-secondary": "#ffffff",
+          "on-error-container": "#93000a",
+          "primary-fixed-dim": "#b8c4ff",
+          "surface": "#f7f9fb",
+          "tertiary-fixed": "#85f8c4",
+          "surface-variant": "#e0e3e5",
+          "tertiary": "#003d28",
+          "tertiary-container": "#00563a",
+          "surface-bright": "#f7f9fb",
+          "inverse-primary": "#b8c4ff",
+          "on-surface-variant": "#444653",
+          "on-secondary-container": "#fefcff",
+          "error": "#ba1a1a",
+          "outline": "#757684",
+          "surface-container-highest": "#e0e3e5",
+          "secondary-fixed-dim": "#b4c5ff",
+          "surface-dim": "#d8dadc",
+          "on-tertiary-container": "#5bcf9e",
+          "surface-tint": "#3755c3",
+          "on-primary-fixed": "#001453",
+          "on-primary-container": "#a8b8ff",
+          "primary": "#00288e",
+          "primary-fixed": "#dde1ff",
+          "on-tertiary-fixed": "#002114",
+          "on-primary": "#ffffff",
+          "surface-container": "#eceef0",
+          "secondary": "#0051d5",
+          "on-primary-fixed-variant": "#173bab",
+          "on-secondary-fixed-variant": "#003ea8",
+          "error-container": "#ffdad6",
+          "surface-container-high": "#e6e8ea",
+          "surface-container-lowest": "#ffffff",
+          "on-secondary-fixed": "#00174b",
+          "tertiary-fixed-dim": "#68dba9",
+          "on-surface": "#191c1e",
+          "on-tertiary": "#ffffff",
+          "secondary-container": "#316bf3",
+          "inverse-on-surface": "#eff1f3",
+          "outline-variant": "#c4c5d5",
+          "on-background": "#191c1e",
+          "primary-container": "#1e40af"
+        },
+        "borderRadius": {
+          "DEFAULT": "1rem",
+          "lg": "2rem",
+          "xl": "3rem",
+          "full": "9999px"
+        },
+        "spacing": {
+          "space-sm": "0.5rem",
+          "gutter": "1.5rem",
+          "space-md": "1rem",
+          "space-lg": "1.5rem",
+          "space-xl": "2.5rem",
+          "space-xs": "0.25rem",
+          "margin": "2rem"
+        },
+        "fontFamily": {
+          "body-lg": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "headline-lg": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "label-sm": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "label-md": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "headline-md": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "body-sm": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "headline-xl": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ],
+          "body-md": [
+            "Plus Jakarta Sans",
+            "sans-serif"
+          ]
+        },
+        "fontSize": {
+          "body-lg": [
+            "16px",
+            {
+              "lineHeight": "24px",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-lg": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "700"
+            }
+          ],
+          "label-sm": [
+            "11px",
+            {
+              "lineHeight": "14px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "500"
+            }
+          ],
+          "label-md": [
+            "12px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.05em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "18px",
+            {
+              "lineHeight": "24px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "600"
+            }
+          ],
+          "body-sm": [
+            "13px",
+            {
+              "lineHeight": "18px",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-xl": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "-0.02em",
+              "fontWeight": "800"
+            }
+          ],
+          "body-md": [
+            "14px",
+            {
+              "lineHeight": "20px",
+              "fontWeight": "400"
+            }
+          ]
+        }
+      },
+    },
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-surface font-body-md text-on-surface"><aside class="fixed left-0 top-0 h-full w-72 bg-surface-container-low z-50 flex flex-col pt-space-xl pb-space-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="px-space-lg mb-space-lg flex items-center gap-space-sm"><img alt="Alumni Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-xDCJFqmH1Zd8oIvucfx4sSFMszgtT9g1iBA8kxgQ_TIBP9LWLtqtrPKxuyrUOLMNdsCQRYLln23G2Av9fIWRvg2VgqPcGmr9m3Y9FVGwX9xASYPTgSc9TDWlkw99rkyIAAgCTaNIClMfzaDIsYsFjSml275ljKBp8AcCGdDO5qmwB6FSogjeh5c3bRUtcyu6EPGwp2Z9_olS82r7gweJ-4M5KVqi47LP6bUwS62Cc4I-Q2XngYNM"><span class="font-headline-md text-primary tracking-tight font-bold">Alumni Mendunia</span></div><nav class="flex-1 px-space-md flex flex-col gap-space-xs" data-active-classes="bg-primary-container text-on-primary-container font-headline-md"><a class="flex items-center px-space-md py-space-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-medium bg-primary text-on-primary font-semibold" data-path="dashboard" href="#"><span class="material-symbols-outlined mr-space-md text-[20px]">dashboard</span>Dashboard</a><a class="flex items-center px-space-md py-space-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-medium" data-path="data-alumni" href="#"><span class="material-symbols-outlined mr-space-md text-[20px]">school</span>Data Alumni</a><a class="flex items-center px-space-md py-space-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-medium" data-path="manajemen-sekolah" href="#"><span class="material-symbols-outlined mr-space-md text-[20px]">apartment</span>Manajemen Sekolah</a><a class="flex items-center px-space-md py-space-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-medium" data-path="manajemen-pengguna" href="#"><span class="material-symbols-outlined mr-space-md text-[20px]">group</span>Manajemen Pengguna</a><a class="flex items-center px-space-md py-space-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-medium" data-path="laporan" href="#"><span class="material-symbols-outlined mr-space-md text-[20px]">bar_chart</span>Laporan</a><a class="flex items-center px-space-md py-space-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-medium" data-path="audit-log" href="#"><span class="material-symbols-outlined mr-space-md text-[20px]">history</span>Audit Log</a></nav></aside><div class="pl-72"><header class="fixed top-0 left-72 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-space-gutter"><div class="flex items-center gap-space-md w-96"><div class="relative w-full"><span class="material-symbols-outlined absolute left-space-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input class="w-full bg-surface-container-low pl-10 pr-space-md py-2 rounded-full text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary border border-outline-variant/30 font-medium" placeholder="Cari data alumni, sekolah..." type="text"></div></div><div class="flex items-center gap-space-md"><button class="relative p-space-sm rounded-full hover:bg-surface-container-high hover:text-on-surface text-on-surface-variant transition-colors"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span></button><div class="flex items-center gap-space-sm pl-space-sm border-l border-outline-variant/30"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="font-headline-md text-on-surface text-body-md font-semibold">Admin SMK</span></div></div></header><main class="relative pt-16 bg-surface min-h-screen px-space-gutter py-space-gutter"><div class="flex flex-col w-full pb-space-xl">
+<!-- Top welcome & quick actions banner -->
+<!-- Metric Cards Grid -->
+<div class="mb-space-lg">
+<div class="flex items-center justify-between mb-space-md">
+<h2 class="text-headline-md text-on-surface font-headline-md">Ringkasan Statistik</h2>
+<span class="text-label-sm text-outline font-medium">Update Terakhir: Hari ini</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-md"><!-- Total Alumni --><div class="bg-surface-container-lowest rounded-DEFAULT p-space-md shadow-sm flex flex-col justify-between"><div class="flex items-center justify-between mb-space-sm"><div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[20px]" style="font-variation-settings: &quot;FILL&quot; 1;">school</span></div><span class="text-label-sm text-on-tertiary-container bg-tertiary-container/10 px-2 py-0.5 rounded-full font-bold">+12%</span></div><div><span class="text-headline-lg text-on-surface font-headline-lg block">3,482</span><span class="text-body-sm text-on-surface-variant font-medium">Total Alumni</span></div></div><!-- Persiapan Berangkat --><div class="bg-surface-container-lowest rounded-DEFAULT p-space-md shadow-sm flex flex-col justify-between"><div class="flex items-center justify-between mb-space-sm"><div class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary"><span class="material-symbols-outlined text-[20px]" style="font-variation-settings: &quot;FILL&quot; 1;">flight_takeoff</span></div><span class="text-label-sm text-secondary bg-secondary-fixed/50 px-2 py-0.5 rounded-full font-bold">Proses</span></div><div><span class="text-headline-lg text-on-surface font-headline-lg block">428</span><span class="text-body-sm text-on-surface-variant font-medium">Persiapan Berangkat</span></div></div><!-- Aktif Bekerja --><div class="bg-surface-container-lowest rounded-DEFAULT p-space-md shadow-sm flex flex-col justify-between"><div class="flex items-center justify-between mb-space-sm"><div class="w-10 h-10 rounded-full bg-tertiary-fixed/30 flex items-center justify-center text-tertiary-container"><span class="material-symbols-outlined text-[20px]" style="font-variation-settings: &quot;FILL&quot; 1;">work</span></div><span class="text-label-sm text-on-tertiary-container bg-tertiary-container/10 px-2 py-0.5 rounded-full font-bold">Stabil</span></div><div><span class="text-headline-lg text-on-surface font-headline-lg block">2,150</span><span class="text-body-sm text-on-surface-variant font-medium">Aktif Bekerja</span></div></div><!-- Selesai Kontrak --><div class="bg-surface-container-lowest rounded-DEFAULT p-space-md shadow-sm flex flex-col justify-between"><div class="flex items-center justify-between mb-space-sm"><div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant"><span class="material-symbols-outlined text-[20px]" style="font-variation-settings: &quot;FILL&quot; 1;">assignment_turned_in</span></div><span class="text-label-sm text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-medium">Selesai</span></div><div><span class="text-headline-lg text-on-surface font-headline-lg block">642</span><span class="text-body-sm text-on-surface-variant font-medium">Selesai Kontrak</span></div></div><!-- Batal Berangkat --><div class="bg-surface-container-lowest rounded-DEFAULT p-space-md shadow-sm flex flex-col justify-between"><div class="flex items-center justify-between mb-space-sm"><div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center text-error"><span class="material-symbols-outlined text-[20px]" style="font-variation-settings: &quot;FILL&quot; 1;">cancel</span></div><span class="text-label-sm text-error bg-error-container px-2 py-0.5 rounded-full font-bold">Cancel</span></div><div><span class="text-headline-lg text-on-surface font-headline-lg block">74</span><span class="text-body-sm text-on-surface-variant font-medium">Batal Berangkat</span></div></div><!-- Belum Penempatan --><div class="bg-surface-container-lowest rounded-DEFAULT p-space-md shadow-sm flex flex-col justify-between"><div class="flex items-center justify-between mb-space-sm"><div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant"><span class="material-symbols-outlined text-[20px]" style="font-variation-settings: &quot;FILL&quot; 1;">pending</span></div><span class="text-label-sm text-outline bg-surface-container-high px-2 py-0.5 rounded-full font-medium">Waiting</span></div><div><span class="text-headline-lg text-on-surface font-headline-lg block">188</span><span class="text-body-sm text-on-surface-variant font-medium">Belum Penempatan</span></div></div></div>
+</div>
+<!-- Sebaran Negara Tujuan Chart & Map preview -->
+<div class="bg-surface-container-lowest rounded-DEFAULT p-space-lg mb-space-lg shadow-sm">
+<div class="flex items-center justify-between mb-space-md">
+<div>
+<h2 class="text-headline-md text-on-surface font-headline-md">Sebaran Negara Tujuan</h2>
+<p class="text-body-sm text-on-surface-variant">Top destinasi global alumni SMK</p>
+</div>
+<button class="text-primary text-label-md font-semibold hover:underline">Lihat Semua</button>
+</div>
+<!-- Visual Bar Breakdown -->
+<div class="space-y-space-sm mb-space-lg">
+<div>
+<div class="flex justify-between text-body-sm font-medium mb-1">
+<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-primary inline-block"></span> Jepang</span>
+<span class="font-bold text-on-surface">1,420 alumni (41%)</span>
+</div>
+<div class="w-full h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 41%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-body-sm font-medium mb-1">
+<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-secondary-container inline-block"></span> Korea Selatan</span>
+<span class="font-bold text-on-surface">980 alumni (28%)</span>
+</div>
+<div class="w-full h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="bg-secondary-container h-full rounded-full" style="width: 28%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-body-sm font-medium mb-1">
+<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-tertiary-container inline-block"></span> Jerman</span>
+<span class="font-bold text-on-surface">540 alumni (15%)</span>
+</div>
+<div class="w-full h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="bg-tertiary-container h-full rounded-full" style="width: 15%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-body-sm font-medium mb-1">
+<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-outline inline-block"></span> Negara Lainnya</span>
+<span class="font-bold text-on-surface">542 alumni (16%)</span>
+</div>
+<div class="w-full h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="bg-outline h-full rounded-full" style="width: 16%;"></div>
+</div>
+</div>
+</div>
+<!-- Interactive Location Preview Card -->
+</div>
+<!-- Alumni per Tahun Kelulusan & Sekolah (2 Column split on mobile if compact or stacked list) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg mb-space-lg">
+<!-- Tahun Kelulusan -->
+<div class="bg-surface-container-lowest rounded-DEFAULT p-space-lg shadow-sm">
+<div class="flex items-center justify-between mb-space-md">
+<h2 class="text-headline-md text-on-surface font-headline-md">Berdasarkan Angkatan</h2>
+<span class="material-symbols-outlined text-outline">calendar_today</span>
+</div>
+<div class="space-y-space-md">
+<div class="flex items-center justify-between pb-space-sm border-b border-surface-container">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-primary-fixed/50 flex items-center justify-center text-primary font-bold text-body-sm">23</div>
+<div>
+<span class="font-semibold text-on-surface block">Angkatan 2023</span>
+<span class="text-body-sm text-on-surface-variant">Lulusan Terbaru</span>
+</div>
+</div>
+<span class="font-bold text-primary text-body-lg">1,240</span>
+</div>
+<div class="flex items-center justify-between pb-space-sm border-b border-surface-container">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant font-bold text-body-sm">22</div>
+<div>
+<span class="font-semibold text-on-surface block">Angkatan 2022</span>
+<span class="text-body-sm text-on-surface-variant">Pengalaman 1 Tahun</span>
+</div>
+</div>
+<span class="font-bold text-on-surface text-body-lg">1,120</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant font-bold text-body-sm">21</div>
+<div>
+<span class="font-semibold text-on-surface block">Angkatan 2021</span>
+<span class="text-body-sm text-on-surface-variant">Senior Placement</span>
+</div>
+</div>
+<span class="font-bold text-on-surface text-body-lg">1,122</span>
+</div>
+</div>
+</div>
+<!-- Sekolah Asal SMK -->
+<div class="bg-surface-container-lowest rounded-DEFAULT p-space-lg shadow-sm">
+<div class="flex items-center justify-between mb-space-md">
+<h2 class="text-headline-md text-on-surface font-headline-md">Top SMK Pengirim</h2>
+<span class="material-symbols-outlined text-outline">apartment</span>
+</div>
+<div class="space-y-space-md">
+<div class="flex items-center justify-between pb-space-sm border-b border-surface-container">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-body-sm">1</div>
+<div>
+<span class="font-semibold text-on-surface block">SMK Negeri 1 Jakarta</span>
+<span class="text-body-sm text-on-surface-variant">Teknik Mesin &amp; Otomotif</span>
+</div>
+</div>
+<span class="font-bold text-primary text-body-lg">840</span>
+</div>
+<div class="flex items-center justify-between pb-space-sm border-b border-surface-container">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-body-sm">2</div>
+<div>
+<span class="font-semibold text-on-surface block">SMK Negeri 26 Jakarta</span>
+<span class="text-body-sm text-on-surface-variant">Teknologi Konstruksi</span>
+</div>
+</div>
+<span class="font-bold text-on-surface text-body-lg">690</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary flex items-center justify-center font-bold text-body-sm">3</div>
+<div>
+<span class="font-semibold text-on-surface block">SMK Negeri 5 Jakarta</span>
+<span class="text-body-sm text-on-surface-variant">Teknik Ketenagalistrikan</span>
+</div>
+</div>
+<span class="font-bold text-on-surface text-body-lg">550</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Aktivitas Status Terbaru -->
+<div class="bg-surface-container-lowest rounded-DEFAULT p-space-lg shadow-sm">
+<div class="flex items-center justify-between mb-space-md">
+<h2 class="text-headline-md text-on-surface font-headline-md">Aktivitas Status Terbaru</h2>
+<span class="w-2.5 h-2.5 bg-tertiary-container rounded-full animate-pulse"></span>
+</div>
+<div class="space-y-space-md">
+<div class="flex items-start gap-space-md pb-space-md border-b border-surface-container">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed flex-shrink-0 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">flight</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-semibold text-on-surface truncate">Rizky Ramadhan</span>
+<span class="text-label-sm text-outline">10m lalu</span>
+</div>
+<p class="text-body-sm text-on-surface-variant truncate">Berangkat ke Osaka, Jepang - SMK Negeri 1 Jakarta</p>
+<span class="inline-block mt-1 bg-secondary-fixed/50 text-secondary text-label-sm px-2 py-0.5 rounded-full font-bold">Persiapan Berangkat</span>
+</div>
+</div>
+<div class="flex items-start gap-space-md pb-space-md border-b border-surface-container">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed/30 flex-shrink-0 flex items-center justify-center text-tertiary-container">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-semibold text-on-surface truncate">Siti Aminah</span>
+<span class="text-label-sm text-outline">1j lalu</span>
+</div>
+<p class="text-body-sm text-on-surface-variant truncate">Kontrak diperpanjang di Seoul, Korea Selatan</p>
+<span class="inline-block mt-1 bg-tertiary-container/10 text-on-tertiary-container text-label-sm px-2 py-0.5 rounded-full font-bold">Aktif Bekerja</span>
+</div>
+</div>
+<div class="flex items-start gap-space-md">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex-shrink-0 flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">done_all</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-semibold text-on-surface truncate">Ahmad Fauzi</span>
+<span class="text-label-sm text-outline">3j lalu</span>
+</div>
+<p class="text-body-sm text-on-surface-variant truncate">Menyelesaikan kontrak 3 tahun di Munich, Jerman</p>
+<span class="inline-block mt-1 bg-surface-container-high text-on-surface-variant text-label-sm px-2 py-0.5 rounded-full font-medium">Selesai Kontrak</span>
+</div>
+</div>
+</div>
+</div>
+</div></main></div>
+
+
+
+
+
+
+</body></html>

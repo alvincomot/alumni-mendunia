@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export default function SchoolsError({ reset }: { reset: () => void }) {
   return (
     <main className="mx-auto max-w-xl px-5 py-12">
-      <h1 className="text-2xl font-semibold text-primary">
+      <h1 className="type-page-title text-primary">
         Data sekolah belum dapat dimuat
       </h1>
       <p className="my-5 text-sm leading-6">

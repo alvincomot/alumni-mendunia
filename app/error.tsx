@@ -6,7 +6,7 @@ import { LogoutButton } from "@/components/logout-button";
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <main className="mx-auto max-w-lg px-5 py-16">
-      <h1 className="text-2xl font-semibold text-primary">
+      <h1 className="type-page-title text-primary">
         Halaman belum dapat dimuat
       </h1>
       <p className="my-5 leading-7">

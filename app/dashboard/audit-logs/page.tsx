@@ -28,17 +28,6 @@ export default async function AuditLogsPage({
     ]),
   );
   const parsed = auditFilterSchema.safeParse(values);
-  const profiles = await readAllRows<{ user_id: string; full_name: string }>(
-    (start, end) =>
-      access.supabase
-        .from("profiles")
-        .select("user_id, full_name", { count: "exact" })
-        .order("user_id")
-        .range(start, end),
-  );
-  const names = new Map(
-    profiles.map((profile) => [profile.user_id, profile.full_name]),
-  );
   const requested =
     typeof raw.page === "string" && /^\d{1,6}$/.test(raw.page)
       ? Number(raw.page)
@@ -58,12 +47,25 @@ export default async function AuditLogsPage({
     if (f.from) query = query.gte("occurred_at", wibBoundary(f.from));
     if (f.to) query = query.lt("occurred_at", wibBoundary(f.to, true));
   }
-  const result = parsed.success
-    ? await query
+  const resultPromise = parsed.success
+    ? query
         .order("occurred_at", { ascending: false })
         .order("id")
         .range((page - 1) * 20, page * 20 - 1)
-    : { data: [], count: 0, error: null };
+    : Promise.resolve({ data: [], count: 0, error: null });
+  const [profiles, result] = await Promise.all([
+    readAllRows<{ user_id: string; full_name: string }>((start, end) =>
+      access.supabase
+        .from("profiles")
+        .select("user_id, full_name", { count: "exact" })
+        .order("user_id")
+        .range(start, end),
+    ),
+    resultPromise,
+  ]);
+  const names = new Map(
+    profiles.map((profile) => [profile.user_id, profile.full_name]),
+  );
   const total = result.count ?? 0;
   const pages = Math.max(1, Math.ceil(total / 20));
   if (result.error?.code === "PGRST103" || (!result.error && page > pages))
@@ -73,7 +75,7 @@ export default async function AuditLogsPage({
   if (result.error) throw new Error("Audit logs unavailable");
   return (
     <>
-      <h1 className="text-2xl font-semibold text-primary">Audit Log</h1>
+      <h1 className="type-page-title text-primary">Audit Log</h1>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
         Catatan perubahan data, hanya baca. Filter tanggal menggunakan WIB.
         Undangan email dan perubahan pada Supabase Auth tidak dicatat oleh tabel
@@ -113,12 +115,12 @@ export default async function AuditLogsPage({
         ]}
       />
       {!parsed.success ? (
-        <p role="alert" className="rounded-lg border bg-white p-5 text-red-800">
+        <p role="alert" className="rounded-xl border bg-card p-5 text-red-800">
           Periksa ID data, pelaku, dan rentang tanggal. ID harus berbentuk UUID
           dan tanggal akhir tidak boleh mendahului tanggal awal.
         </p>
       ) : !result.data?.length ? (
-        <p className="rounded-lg border bg-white p-6">
+        <p className="rounded-xl border bg-card p-6">
           Tidak ada catatan sesuai filter.
         </p>
       ) : (
@@ -126,7 +128,7 @@ export default async function AuditLogsPage({
           role="region"
           aria-label="Catatan audit"
           tabIndex={0}
-          className="overflow-x-auto rounded-lg border bg-white"
+          className="min-w-0 overflow-x-auto rounded-xl border bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
           <table className="w-full min-w-[850px] text-left text-sm">
             <caption className="sr-only">

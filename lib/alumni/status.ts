@@ -94,7 +94,7 @@ export const historyEntrySchema = z.object({
   note: z.string().nullable(),
   changed_at: z.string().datetime({ offset: true }),
 });
-export type StatusHistoryEntry = z.infer<typeof historyEntrySchema>;
+type StatusHistoryEntry = z.infer<typeof historyEntrySchema>;
 export type StatusHistoryResult = {
   entries: StatusHistoryEntry[];
   error: boolean;

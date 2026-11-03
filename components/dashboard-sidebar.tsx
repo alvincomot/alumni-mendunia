@@ -2,78 +2,128 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DashboardIcon,
+  type DashboardIconName,
+} from "@/components/dashboard-icon";
 import type { ApplicationRole } from "@/lib/auth/roles";
+
+type NavigationItem = {
+  href: string;
+  label: string;
+  icon: DashboardIconName;
+};
 
 export function DashboardSidebar({ role }: { role: ApplicationRole }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const links = [
-    ["/dashboard", "Dashboard"],
-    ["/dashboard/alumni", "Data Alumni"],
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+  const links: NavigationItem[] = [
+    { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/dashboard/alumni", label: "Data Alumni", icon: "alumni" },
     ...(role === "admin_dinas"
       ? [
-          ["/dashboard/schools", "Manajemen Sekolah"],
-          ["/dashboard/users", "Manajemen Pengguna"],
+          {
+            href: "/dashboard/schools",
+            label: "Manajemen Sekolah",
+            icon: "building" as const,
+          },
+          {
+            href: "/dashboard/users",
+            label: "Manajemen Pengguna",
+            icon: "users" as const,
+          },
         ]
       : []),
-    ...(role !== "petugas_sekolah" ? [["/dashboard/reports", "Laporan"]] : []),
-    ...(role === "admin_dinas" ? [["/dashboard/audit-logs", "Audit Log"]] : []),
+    ...(role !== "petugas_sekolah"
+      ? [
+          {
+            href: "/dashboard/reports",
+            label: "Laporan",
+            icon: "chart" as const,
+          },
+        ]
+      : []),
+    ...(role === "admin_dinas"
+      ? [
+          {
+            href: "/dashboard/audit-logs",
+            label: "Audit Log",
+            icon: "history" as const,
+          },
+        ]
+      : []),
   ];
-  return (
-    <aside className="border-b bg-primary text-white lg:min-h-svh lg:w-60 lg:shrink-0 lg:border-0">
-      <div className="flex items-center justify-between gap-3 p-4 lg:p-6">
+
+  const navigation = (
+    <>
         <Link
           href="/dashboard"
-          className="min-h-11 content-center font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+          onClick={() => setOpen(false)}
+          className="mb-6 flex min-h-12 items-center gap-3 rounded-lg px-2 pr-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:pr-2"
         >
-          Alumni Mendunia
-          <br />
-          SMK DKI Jakarta
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-bold text-primary">
+            AM
+          </span>
+          <span className="type-brand min-w-0 text-primary">
+            Alumni Mendunia
+          </span>
         </Link>
-        <Button
-          variant="outline"
-          className="min-h-11 bg-white text-primary lg:hidden"
-          aria-expanded={open}
-          aria-controls="dashboard-menu"
-          onClick={() => setOpen(!open)}
-        >
-          Menu
-        </Button>
-      </div>
-      <nav
-        id="dashboard-menu"
-        aria-label="Navigasi utama"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            setOpen(false);
-            document
-              .querySelector<HTMLButtonElement>(
-                '[aria-controls="dashboard-menu"]',
-              )
-              ?.focus();
-          }
-        }}
-        className={`${open ? "block" : "hidden"} space-y-1 px-3 pb-4 lg:block`}
-      >
-        {links.map(([href, label]) => {
-          const active =
-            pathname === href ||
-            (href !== "/dashboard" && pathname.startsWith(`${href}/`));
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              onClick={() => setOpen(false)}
-              className={`flex min-h-11 items-center rounded-md border-l-4 px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${active ? "border-teal-300 bg-white/10 font-semibold" : "border-transparent hover:bg-white/10"}`}
-            >
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+
+        <nav className="flex flex-1 flex-col gap-1">
+          {links.map(({ href, label, icon }) => {
+            const active =
+              pathname === href ||
+              (href !== "/dashboard" && pathname.startsWith(`${href}/`));
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                onClick={() => setOpen(false)}
+                className={`flex min-h-12 items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
+                  active
+                    ? "bg-primary font-semibold text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
+                <DashboardIcon name={icon} className="size-5 shrink-0" />
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <p className="px-4 text-xs leading-5 text-[#6B6D7A]">
+          Dinas Pendidikan
+          <br />
+          Provinsi DKI Jakarta
+        </p>
+    </>
+  );
+  return (
+    <>
+      <aside aria-label="Navigasi utama" className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-y-auto border-r bg-card px-4 py-6 lg:flex">
+        {navigation}
+      </aside>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <button id="dashboard-menu-trigger" type="button" aria-label="Buka navigasi" className="fixed left-3 top-2.5 z-40 grid size-11 place-items-center rounded-lg text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:hidden">
+            <DashboardIcon name="menu" className="size-5" />
+          </button>
+        </DialogTrigger>
+        <DialogContent aria-describedby={undefined} className="inset-y-0 left-0 top-0 flex h-dvh max-h-none w-72 max-w-[calc(100vw-2rem)] translate-x-0 translate-y-0 flex-col rounded-none border-0 border-r px-4 py-6 sm:p-4 sm:py-6">
+          <DialogTitle className="sr-only">Navigasi utama</DialogTitle>
+          {navigation}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -14,6 +14,7 @@ import {
   profileInputSchema,
   type UserResult,
 } from "@/lib/users/schema";
+import { withAuthFlowContext } from "@/lib/auth/auth-flow-context";
 
 const denied: UserResult = {
   success: false,
@@ -56,6 +57,12 @@ export async function saveUserProfile(
       .eq("user_id", userId as string)
       .select("user_id")
       .maybeSingle();
+    if (error?.code === "23505")
+      return {
+        success: false,
+        message:
+          "Sekolah tujuan sudah memiliki akun Petugas Sekolah aktif. Nonaktifkan akun aktif tersebut sebelum memindahkan atau mengaktifkan akun lain.",
+      };
     if (error || !data)
       return {
         success: false,
@@ -89,7 +96,9 @@ export async function inviteUser(input: unknown): Promise<UserResult> {
       };
     const { email, profile, recover } = parsed.data;
     recovered = recover;
-    const redirectTo = recover ? undefined : invitationRedirect();
+    const redirectTo = recover
+      ? undefined
+      : withAuthFlowContext(invitationRedirect(), "dinas_invitation");
     if (profile.school_id) {
       const school = await access.supabase
         .from("schools")

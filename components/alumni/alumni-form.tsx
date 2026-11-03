@@ -1,12 +1,17 @@
 "use client";
 
+import { FormSession, useFormActivity } from "@/components/ui/form-session";
+
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { alumniReturnPath } from "@/lib/alumni/navigation";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingIndicator } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
 import {
   alumniSchema,
   type AlumniRecord,
@@ -15,15 +20,29 @@ import {
 } from "@/lib/alumni/schema";
 import { saveAlumni } from "@/app/dashboard/alumni/actions";
 
-export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
+function AlumniFormContent({
+  alumni,
+  returnTo,
+  onSaved,
+}: {
+  alumni?: AlumniRecord;
+  returnTo?: string;
+  onSaved?: () => void;
+}) {
   const router = useRouter();
+  const active = useFormActivity();
+  const { toast } = useToast();
   const busy = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const isSubmitting = submitting;
   const [result, setResult] = useState<MutationResult | null>(null);
   const {
     register,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting },
+    clearErrors,
+    reset,
+    formState: { errors },
   } = useForm<AlumniInput>({
     defaultValues: alumni
       ? {
@@ -34,7 +53,8 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
       : undefined,
   });
   async function submit(values: AlumniInput) {
-    if (busy.current || (!alumni && result?.success)) return;
+    if (busy.current) return;
+    clearErrors();
     const parsed = alumniSchema.safeParse(values);
     if (!parsed.success) {
       parsed.error.issues.forEach((issue) =>
@@ -47,16 +67,28 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
       return;
     }
     busy.current = true;
+    setSubmitting(true);
     setResult(null);
     try {
       const response = await saveAlumni(alumni?.id ?? null, parsed.data);
-      setResult(response);
+      if (!active.current) return;
       if (response.success) {
-        if (!alumni && response.id)
-          router.replace(`/dashboard/alumni/${response.id}`);
+        reset(parsed.data);
+        setResult(null);
+        toast(
+          alumni
+            ? "Data alumni berhasil diperbarui."
+            : "Alumni berhasil ditambahkan.",
+          alumni ? undefined : { destination: "/dashboard/alumni" },
+        );
+        if (!alumni && response.id) router.replace(alumniReturnPath(returnTo));
+        onSaved?.();
         router.refresh();
+      } else {
+        setResult(response);
       }
     } catch {
+      if (!active.current) return;
       setResult({
         success: false,
         message:
@@ -64,6 +96,7 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
       });
     } finally {
       busy.current = false;
+      setSubmitting(false);
     }
   }
   return (
@@ -73,10 +106,7 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
       className="space-y-5"
       aria-busy={isSubmitting}
     >
-      <fieldset
-        disabled={isSubmitting || (!alumni && result?.success)}
-        className="grid gap-4 sm:grid-cols-2"
-      >
+      <fieldset disabled={isSubmitting} className="grid gap-4 sm:grid-cols-2">
         {(
           [
             ["full_name", "Nama lengkap", "text"],
@@ -115,19 +145,13 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
         ))}
       </fieldset>
       {result && (
-        <p
-          role={result.success ? "status" : "alert"}
-          className={`text-sm ${result.success ? "text-green-800" : "text-red-800"}`}
-        >
+        <p role="alert" className="text-sm text-red-800">
           {result.message}
         </p>
       )}
       <div className="flex flex-wrap gap-3">
-        <Button
-          type="submit"
-          disabled={isSubmitting || (!alumni && result?.success)}
-          className="min-h-11"
-        >
+        <Button type="submit" disabled={isSubmitting} className="min-h-11">
+          {isSubmitting && <LoadingIndicator size="sm" />}
           {isSubmitting
             ? "Menyimpan..."
             : alumni
@@ -135,7 +159,7 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
               : "Simpan alumni dan lanjutkan"}
         </Button>
         <Button asChild variant="outline" className="min-h-11">
-          <Link href="/dashboard/alumni">
+          <Link href={alumniReturnPath(returnTo)}>
             {result && !result.success
               ? "Periksa daftar alumni"
               : "Kembali ke daftar"}
@@ -143,5 +167,45 @@ export function AlumniForm({ alumni }: { alumni?: AlumniRecord }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+export function AlumniEditor({
+  alumni,
+  returnTo,
+}: {
+  alumni: AlumniRecord;
+  returnTo?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="mt-6 border-t pt-4"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="flex min-h-11 cursor-pointer items-center rounded text-sm font-medium text-accent underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+        Edit identitas alumni
+      </summary>
+      {open && (
+        <div className="mt-4 max-w-2xl">
+          <AlumniForm
+            alumni={alumni}
+            returnTo={returnTo}
+            onSaved={() => setOpen(false)}
+          />
+        </div>
+      )}
+    </details>
+  );
+}
+
+export function AlumniForm(
+  props: React.ComponentProps<typeof AlumniFormContent>,
+) {
+  return (
+    <FormSession key={JSON.stringify(props.alumni)}>
+      <AlumniFormContent {...props} />
+    </FormSession>
   );
 }

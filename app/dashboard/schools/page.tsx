@@ -3,10 +3,14 @@ import { redirect } from "next/navigation";
 import { getSchoolAccess } from "@/lib/schools/access";
 import { type School } from "@/lib/schools/schema";
 import { SchoolDialog } from "@/components/schools/school-dialog";
+import { SchoolRowActions } from "@/components/schools/school-row-actions";
+import { SchoolAccountStatus } from "@/components/schools/school-account-status";
+import { createAdminClient } from "@/lib/users/admin";
+import { readSchoolAccountStatus } from "@/lib/schools/accounts";
+import type { SchoolLookup } from "@/lib/auth/school-auth";
 import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Filters } from "@/components/data/filters";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 const pageSize = 10;
@@ -19,12 +23,11 @@ export default async function SchoolsPage({
   const access = await getSchoolAccess();
   if (!access.allowed) {
     if (access.reason === "session") redirect("/auth/login");
+    if (access.reason === "password_change") redirect("/auth/update-password");
     if (access.reason === "error") throw new Error("School access unavailable");
     return (
       <main className="mx-auto max-w-xl px-5 py-12">
-        <h1 className="text-2xl font-semibold text-primary">
-          Akses tidak diizinkan
-        </h1>
+        <h1 className="type-page-title text-primary">Akses tidak diizinkan</h1>
         <p className="my-5 text-sm leading-6">
           Manajemen sekolah hanya tersedia untuk Admin Dinas dan Viewer Dinas
           dengan profil aktif.
@@ -73,14 +76,54 @@ export default async function SchoolsPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (page > totalPages) redirect(pageUrl(totalPages));
   const schools = (data ?? []) as School[];
-
+  type AccountRow = {
+    user_id: string;
+    full_name: string;
+    school_id: string;
+    is_active: boolean;
+  };
+  let accounts: AccountRow[] = [];
+  if (access.canManage && schools.length > 0) {
+    const schoolIds = schools.map((school) => school.id);
+    const result = await access.supabase
+      .from("profiles")
+      .select("user_id, full_name, school_id, is_active")
+      .eq("role", "petugas_sekolah")
+      .in("school_id", schoolIds);
+    if (result.error) throw new Error("School account list unavailable");
+    accounts = (result.data ?? []) as AccountRow[];
+  }
+  const statuses = new Map<string, SchoolLookup["status"] | null>();
+  if (access.canManage && schools.length > 0) {
+    try {
+      const admin = createAdminClient();
+      await Promise.all(
+        schools.map(async (school) => {
+          try {
+            statuses.set(
+              school.id,
+              await readSchoolAccountStatus(admin, school.npsn),
+            );
+          } catch {
+            statuses.set(school.id, null);
+          }
+        }),
+      );
+    } catch {
+      for (const school of schools) statuses.set(school.id, null);
+    }
+  }
+  const accountsBySchool = new Map<string, AccountRow[]>();
+  for (const account of accounts) {
+    const current = accountsBySchool.get(account.school_id) ?? [];
+    current.push(account);
+    accountsBySchool.set(account.school_id, current);
+  }
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-primary">
-            Manajemen Sekolah
-          </h1>
+          <h1 className="type-page-title text-primary">Manajemen Sekolah</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {access.canManage
               ? "Kelola identitas dan status sekolah."
@@ -89,46 +132,39 @@ export default async function SchoolsPage({
         </div>
         {access.canManage && <SchoolDialog />}
       </div>
-      <form
-        action="/dashboard/schools"
-        className="my-6 grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
-      >
-        <div className="space-y-2">
-          <Label htmlFor="school-search">Cari sekolah</Label>
-          <Input
-            key={search}
-            id="school-search"
-            name="q"
-            defaultValue={search}
-            maxLength={200}
-            placeholder="NPSN, nama sekolah, atau kota"
-            className="min-h-11 bg-white"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="school-status">Status</Label>
-          <select
-            key={status}
-            id="school-status"
-            name="status"
-            defaultValue={status}
-            className="block min-h-11 w-full rounded-md border bg-white px-3 text-sm focus-visible:outline-accent"
+      {access.canManage &&
+        [...statuses.values()].some((status) => status === null) && (
+          <p
+            role="status"
+            className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
           >
-            <option value="all">Semua status</option>
-            <option value="active">Aktif</option>
-            <option value="inactive">Nonaktif</option>
-          </select>
-        </div>
-        <Button type="submit" className="min-h-11">
-          Terapkan
-        </Button>
-        <Button asChild variant="outline" className="min-h-11">
-          <Link href="/dashboard/schools">Reset</Link>
-        </Button>
-      </form>
+            Sebagian status aktivasi belum dapat dimuat. Muat ulang halaman
+            untuk mencoba kembali. Data sekolah tetap dapat dikelola.
+          </p>
+        )}
+      <Filters
+        path="/dashboard/schools"
+        values={{ q: search, status: status === "all" ? "" : status }}
+        fields={[
+          {
+            name: "q",
+            label: "Cari sekolah",
+            placeholder: "NPSN, nama sekolah, atau kota",
+            maxLength: 200,
+          },
+          {
+            name: "status",
+            label: "Status",
+            options: [
+              { value: "active", label: "Aktif" },
+              { value: "inactive", label: "Nonaktif" },
+            ],
+          },
+        ]}
+      />
       {schools.length === 0 ? (
-        <section className="rounded-lg border bg-white p-8">
-          <h2 className="text-lg font-semibold">
+        <section className="rounded-xl border bg-card p-6">
+          <h2 className="type-section-title">
             {search || status !== "all"
               ? "Sekolah tidak ditemukan"
               : "Belum ada data sekolah"}
@@ -146,9 +182,11 @@ export default async function SchoolsPage({
           role="region"
           aria-label="Daftar sekolah, geser untuk melihat seluruh kolom"
           tabIndex={0}
-          className="overflow-x-auto rounded-lg border bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="min-w-0 overflow-x-auto rounded-xl border bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
-          <table className="w-full min-w-[680px] text-left text-sm">
+          <table
+            className={`w-full text-left text-sm ${access.canManage ? "min-w-[960px]" : "min-w-[680px]"}`}
+          >
             <caption className="sr-only">
               Daftar sekolah beserta NPSN, kota, status, dan tindakan yang
               tersedia
@@ -160,7 +198,9 @@ export default async function SchoolsPage({
                   "Nama sekolah",
                   "Kota",
                   "Status",
-                  ...(access.canManage ? ["Tindakan"] : []),
+                  ...(access.canManage
+                    ? ["Akun sekolah", "Petugas", "Tindakan"]
+                    : []),
                 ].map((label) => (
                   <th
                     key={label}
@@ -195,11 +235,33 @@ export default async function SchoolsPage({
                     </span>
                   </td>
                   {access.canManage && (
+                    <>
+                      <td className="px-4 py-4">
+                        <SchoolAccountStatus
+                          status={statuses.get(school.id) ?? null}
+                        />
+                      </td>
+                      <td className="max-w-56 break-words px-4 py-4">
+                        {(accountsBySchool.get(school.id) ?? []).length > 0
+                          ? (accountsBySchool.get(school.id) ?? [])
+                              .map((account) =>
+                                account.is_active
+                                  ? account.full_name
+                                  : `${account.full_name} (nonaktif)`,
+                              )
+                              .join(", ")
+                          : "Belum ditugaskan"}
+                      </td>
+                    </>
+                  )}
+                  {access.canManage && (
                     <td className="px-4 py-4">
-                      <div className="flex gap-2">
-                        <SchoolDialog school={school} />
-                        <SchoolDialog school={school} statusOnly />
-                      </div>
+                      <SchoolRowActions
+                        school={school}
+                        accounts={(accountsBySchool.get(school.id) ?? []).map(
+                          (account) => ({ isActive: account.is_active }),
+                        )}
+                      />
                     </td>
                   )}
                 </tr>
