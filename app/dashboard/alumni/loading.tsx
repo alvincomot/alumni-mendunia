@@ -1,11 +1,13 @@
+import { TableSkeleton } from "@/components/ui/loading";
+
 export default function LoadingAlumni() {
   return (
-    <main
-      className="mx-auto max-w-6xl px-5 py-12"
-      role="status"
-      aria-live="polite"
-    >
-      <p className="text-sm text-muted-foreground">Memuat data alumni...</p>
-    </main>
+    <TableSkeleton
+      label="Memuat data alumni"
+      columns={7}
+      rows={6}
+      filterFields={4}
+      minWidth={950}
+    />
   );
 }
