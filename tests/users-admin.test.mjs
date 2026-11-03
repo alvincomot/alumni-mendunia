@@ -62,7 +62,7 @@ function directory(size, options = {}) {
   };
 }
 
-test("admin client uses only server secret and disables all session behavior", () => {
+test("admin client pins the server secret and disables all session behavior", async () => {
   const names = [
     "SUPABASE_SECRET_KEY",
     "NEXT_PUBLIC_SUPABASE_URL",
@@ -77,17 +77,44 @@ test("admin client uses only server secret and disables all session behavior", (
       call = args;
       return {};
     }).createAdminClient();
-    assert.deepEqual(call, [
-      "https://fictional.example.test",
-      "fictional-secret",
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
+    assert.equal(call[0], "https://fictional.example.test");
+    assert.equal(call[1], "fictional-secret");
+    assert.deepEqual(call[2].auth, {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    });
+    assert.equal(typeof call[2].global.fetch, "function");
+
+    let forwarded;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      forwarded = { input, init };
+      return new Response(null, { status: 204 });
+    };
+    try {
+      await call[2].global.fetch(
+        "https://fictional.example.test/rest/v1/rpc/school_activation_request",
+        {
+          headers: {
+            apikey: "browser-key",
+            Authorization: "Bearer browser-session",
+            cookie: "sb-session=browser-session",
+          },
         },
-      },
-    ]);
+      );
+      const headers = new Headers(forwarded.init.headers);
+      assert.equal(headers.get("apikey"), "fictional-secret");
+      assert.equal(headers.get("authorization"), "Bearer fictional-secret");
+      assert.equal(headers.has("cookie"), false);
+      assert.equal(forwarded.init.credentials, "omit");
+      await assert.rejects(
+        call[2].global.fetch("https://different-project.example.test/rest/v1/"),
+        /project yang tidak sesuai/,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
     delete process.env.SUPABASE_SECRET_KEY;
     process.env.SUPABASE_SERVICE_ROLE_KEY = "fictional-legacy-key";
     assert.throws(() => admin.createAdminClient(), /SUPABASE_SECRET_KEY/);
@@ -185,4 +212,5 @@ test("infrastructure diagnostics never reflect arbitrary provider messages or ke
     admin.administrationMessage({ code: "email_address_not_authorized" }),
     /SMTP/,
   );
+  assert.equal(admin.accountProvisioningMessage, undefined);
 });

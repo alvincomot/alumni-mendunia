@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { LoadingIndicator } from "@/components/ui/loading";
 import { statusLabels } from "@/lib/alumni/schema";
 import { type StatusHistoryResult } from "@/lib/alumni/status";
 
@@ -21,6 +22,7 @@ export function StatusHistory({ entries, error }: StatusHistoryResult) {
           className="min-h-11"
           onClick={() => startTransition(() => router.refresh())}
         >
+          {pending && <LoadingIndicator size="sm" />}
           {pending ? "Memuat riwayat..." : "Coba muat riwayat lagi"}
         </Button>
       </div>

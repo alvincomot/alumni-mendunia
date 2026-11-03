@@ -119,11 +119,16 @@ function harness({
   };
   const access = load("lib/schools/access.ts", {
     "server-only": {},
+    "@/lib/auth/password-change": load("lib/auth/password-change.ts"),
     "@/lib/supabase/server": { createClient: async () => supabase },
   });
   const actions = load("app/dashboard/schools/actions.ts", {
+    "@/lib/alumni/access": { getAlumniAccess: async () => ({ allowed: false }) },
     "@/lib/schools/access": access,
     "@/lib/schools/schema": schema,
+    "@/lib/users/admin": {},
+    "@/lib/users/schema": {},
+    "@/lib/schools/accounts": {},
     "next/cache": { revalidatePath: (value) => revalidated.push(value) },
   });
   return { ...actions, ...access, mutations, filters, revalidated };
@@ -188,7 +193,7 @@ test("creation defaults active; editing only writes allowed fields", async () =>
     true,
   );
   assert.deepEqual(h.mutations[1], ["update", valid]);
-  assert.deepEqual(h.revalidated, ["/dashboard/schools", "/dashboard/schools"]);
+  assert.deepEqual(h.revalidated, Array(2).fill(["/dashboard/schools", "/dashboard", "/dashboard/users", "/dashboard/alumni", "/dashboard/reports", "/dashboard/alumni/[id]"]).flat());
 });
 
 test("invalid payloads are rejected by the server before writes", async () => {

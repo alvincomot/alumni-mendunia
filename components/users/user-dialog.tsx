@@ -1,21 +1,26 @@
 "use client";
 
+import { FormSession, useFormActivity } from "@/components/ui/form-session";
+
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingIndicator } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
 import { applicationRoles, roleDetails } from "@/lib/auth/roles";
 import {
   profileInputSchema,
+  invitationSchema,
   type ProfileInput,
   type UserProfile,
   type UserResult,
 } from "@/lib/users/schema";
 import { inviteUser, saveUserProfile } from "@/app/dashboard/users/actions";
 
-export function UserDialog({
+function UserDialogContent({
   profile,
   schools,
   enabled = true,
@@ -30,11 +35,13 @@ export function UserDialog({
   const dialog = useRef<HTMLDialogElement>(null);
   const busy = useRef(false);
   const router = useRouter();
+  const active = useFormActivity();
+  const { toast } = useToast();
   const [result, setResult] = useState<UserResult | null>(null);
   const [email, setEmail] = useState("");
-  const [recover, setRecover] = useState(recoveryOnly);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const recover = recoveryOnly;
   const [confirmed, setConfirmed] = useState(false);
-  const [open, setOpen] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const {
     register,
@@ -48,7 +55,7 @@ export function UserDialog({
   } = useForm<ProfileInput>({
     defaultValues: {
       full_name: profile?.full_name ?? "",
-      role: profile?.role ?? "petugas_sekolah",
+      role: profile?.role ?? "viewer_dinas",
       school_id: profile?.school_id ?? "",
       is_active: profile?.is_active ?? true,
     },
@@ -70,18 +77,54 @@ export function UserDialog({
       });
       return;
     }
+    if (!profile) {
+      const invitation = invitationSchema.safeParse({
+        email,
+        profile: parsed.data,
+        recover,
+      });
+      if (!invitation.success) {
+        const issue = invitation.error.issues.find(
+          (candidate) => candidate.path[0] === "email",
+        );
+        if (issue) {
+          setEmailError("Masukkan alamat email resmi yang valid.");
+        } else {
+          setResult({
+            success: false,
+            message: invitation.error.issues[0].message,
+          });
+        }
+        return;
+      }
+    }
     busy.current = true;
     setSubmitting(true);
     try {
       const response = profile
         ? await saveUserProfile(profile.user_id, parsed.data)
         : await inviteUser({ email, profile: parsed.data, recover });
-      setResult(response);
+      if (!active.current) return;
       if (response.success) {
+        setResult(null);
+        toast(
+          profile
+            ? "Profil pengguna berhasil diperbarui."
+            : recover
+              ? "Profil pengguna berhasil dipulihkan."
+              : "Permintaan undangan diterima layanan email.",
+        );
         dialog.current?.close();
+        reset(parsed.data);
+        setEmail("");
+        setEmailError(null);
+        setConfirmed(false);
+        router.refresh();
+      } else {
+        setResult(response);
       }
-      router.refresh();
     } catch {
+      if (!active.current) return;
       setResult({
         success: false,
         message: "Koneksi terputus. Muat ulang daftar sebelum mencoba lagi.",
@@ -100,52 +143,48 @@ export function UserDialog({
         onClick={() => {
           setResult(null);
           setEmail("");
-          setRecover(recoveryOnly);
+          setEmailError(null);
           setConfirmed(false);
           reset({
             full_name: profile?.full_name ?? "",
-            role: profile?.role ?? "petugas_sekolah",
+            role: profile?.role ?? "viewer_dinas",
             school_id: profile?.school_id ?? "",
             is_active: profile?.is_active ?? true,
           });
           dialog.current?.showModal();
-          setOpen(true);
         }}
       >
         {profile
           ? "Edit profil"
           : recoveryOnly
             ? "Pulihkan profil"
-            : "Undang pengguna"}
+            : "Undang pengguna Dinas"}
       </Button>
-      {result && !open && (
-        <p
-          role={result.success ? "status" : "alert"}
-          className="mt-2 max-w-lg text-sm"
-        >
-          {result.message}
-        </p>
-      )}
       <dialog
         ref={dialog}
         aria-labelledby={`${id}-title`}
-        onClose={() => setOpen(false)}
-        className="max-h-[90svh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-lg border bg-white p-5 text-foreground backdrop:bg-slate-950/40"
+        className="max-h-[90svh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border bg-card p-6 text-foreground backdrop:bg-slate-950/40"
         onCancel={(event) => {
           if (busy.current) event.preventDefault();
         }}
       >
-        <h2 id={`${id}-title`} className="text-xl font-semibold text-primary">
+        <h2 id={`${id}-title`} className="type-section-title text-primary">
           {profile
             ? "Edit profil pengguna"
             : recoveryOnly
               ? "Pulihkan profil pengguna"
-              : "Undang pengguna"}
+              : "Undang pengguna Dinas"}
         </h2>
         <p className="my-3 text-sm leading-6">
           Perubahan peran dan status langsung memengaruhi akses aplikasi.
           Pastikan penugasan sesuai kewenangan pengguna.
         </p>
+        {!profile && !recoveryOnly && (
+          <p className="mb-4 text-sm">
+            Undangan tersedia untuk Admin Dinas dan Viewer Dinas. Petugas
+            sekolah menggunakan aktivasi mandiri melalui NPSN.
+          </p>
+        )}
         {recoveryOnly && (
           <p className="mb-4 text-sm">
             Hubungkan akun Auth yang sudah ada ke profil aplikasi. Tindakan ini
@@ -156,6 +195,7 @@ export function UserDialog({
           onSubmit={handleSubmit(submit)}
           aria-busy={isSubmitting}
           className="space-y-4"
+          noValidate
         >
           <fieldset disabled={isSubmitting} className="space-y-4">
             {!profile && (
@@ -167,16 +207,34 @@ export function UserDialog({
                   required
                   maxLength={254}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError(null);
+                    setResult(null);
+                  }}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby={
+                    emailError ? `${id}-email-error` : undefined
+                  }
                   className="min-h-11"
                 />
+                {emailError && (
+                  <p id={`${id}-email-error`} className="text-sm text-red-800">
+                    {emailError}
+                  </p>
+                )}
               </div>
             )}
             <div className="space-y-2">
               <Label htmlFor={`${id}-name`}>Nama lengkap (wajib)</Label>
               <Input
                 id={`${id}-name`}
-                {...register("full_name")}
+                {...register("full_name", {
+                  onChange: () => {
+                    clearErrors("full_name");
+                    setResult(null);
+                  },
+                })}
                 required
                 maxLength={150}
                 aria-invalid={!!errors.full_name}
@@ -191,35 +249,47 @@ export function UserDialog({
                 </p>
               )}
             </div>
-            <label className="block space-y-2 text-sm font-medium">
+            <label className="type-label block space-y-2">
               <span>Peran (wajib)</span>
               <select
                 {...register("role", {
                   onChange: (e) => {
                     if (e.target.value !== "petugas_sekolah")
                       setValue("school_id", "");
+                    clearErrors("school_id");
+                    setResult(null);
                   },
                 })}
-                className="min-h-11 w-full rounded-md border bg-white px-3"
+                className="form-control"
               >
-                {applicationRoles.map((value) => (
-                  <option key={value} value={value}>
-                    {roleDetails[value].label}
-                  </option>
-                ))}
+                {applicationRoles
+                  .filter(
+                    (value) =>
+                      profile || recoveryOnly || value !== "petugas_sekolah",
+                  )
+                  .map((value) => (
+                    <option key={value} value={value}>
+                      {roleDetails[value].label}
+                    </option>
+                  ))}
               </select>
             </label>
             {role === "petugas_sekolah" && (
-              <label className="block space-y-2 text-sm font-medium">
+              <label className="type-label block space-y-2">
                 <span>Sekolah aktif (wajib)</span>
                 <select
-                  {...register("school_id")}
+                  {...register("school_id", {
+                    onChange: () => {
+                      clearErrors("school_id");
+                      setResult(null);
+                    },
+                  })}
                   required
                   aria-invalid={!!errors.school_id}
                   aria-describedby={
                     errors.school_id ? `${id}-school-error` : undefined
                   }
-                  className="min-h-11 w-full rounded-md border bg-white px-3"
+                  className="form-control"
                 >
                   <option value="">Pilih sekolah</option>
                   {schools.map((s) => (
@@ -252,24 +322,15 @@ export function UserDialog({
               />
               Profil aktif
             </label>
-            {!profile && !recoveryOnly && (
-              <label className="flex min-h-11 items-start gap-3 text-sm leading-6">
-                <input
-                  type="checkbox"
-                  checked={recover}
-                  onChange={(e) => setRecover(e.target.checked)}
-                  className="mt-1 size-5 shrink-0"
-                />
-                Pulihkan profil untuk akun Auth yang sudah ada, tanpa mengirim
-                undangan baru.
-              </label>
-            )}
             <label className="flex min-h-11 items-start gap-3 text-sm leading-6">
               <input
                 type="checkbox"
                 required
                 checked={confirmed}
-                onChange={(e) => setConfirmed(e.target.checked)}
+                onChange={(e) => {
+                  setConfirmed(e.target.checked);
+                  setResult(null);
+                }}
                 className="mt-1 size-5 shrink-0"
               />
               Saya telah memeriksa peran, sekolah, dan status akun ini.
@@ -282,6 +343,7 @@ export function UserDialog({
           )}
           <div className="flex flex-wrap gap-3">
             <Button type="submit" disabled={isSubmitting} className="min-h-11">
+              {isSubmitting && <LoadingIndicator size="sm" />}
               {isSubmitting
                 ? "Memproses..."
                 : profile
@@ -303,5 +365,15 @@ export function UserDialog({
         </form>
       </dialog>
     </div>
+  );
+}
+
+export function UserDialog(
+  props: React.ComponentProps<typeof UserDialogContent>,
+) {
+  return (
+    <FormSession key={props.profile?.user_id ?? "new"}>
+      <UserDialogContent {...props} />
+    </FormSession>
   );
 }

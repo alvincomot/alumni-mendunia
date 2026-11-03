@@ -7,7 +7,11 @@ export async function requireAccess(roles?: readonly ApplicationRole[]) {
   const access = await getAlumniAccess();
   if (!access.allowed)
     redirect(
-      access.reason === "session" ? "/auth/login" : "/auth/access-denied",
+      access.reason === "session"
+        ? "/auth/login"
+        : access.reason === "password_change"
+          ? "/auth/update-password"
+          : "/auth/access-denied",
     );
   if (roles && !roles.includes(access.role)) redirect("/auth/access-denied");
   return access;

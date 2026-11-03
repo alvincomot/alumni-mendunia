@@ -208,12 +208,14 @@ function harness(options = {}) {
   });
   const actions = load("app/dashboard/alumni/status-actions.ts", {
     "@/lib/alumni/access": access,
+      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
     "@/lib/alumni/status": status,
     "next/cache": { revalidatePath: (value) => invalidated.push(value) },
   });
   function detail() {
     return load("app/dashboard/alumni/[id]/page.tsx", {
       "@/lib/alumni/access": access,
+      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
       "@/lib/alumni/schema": schema,
       "@/lib/countries": countryData,
       "@/lib/alumni/history": historyModule,
@@ -232,11 +234,11 @@ function harness(options = {}) {
         AlumniAccessDenied: "denied",
         PlacementBadge: "badge",
       },
-      "@/components/alumni/alumni-form": { AlumniForm: "identity-form" },
+      "@/components/alumni/alumni-form": { AlumniEditor: "identity-form" },
       "@/components/alumni/placement-form": { PlacementForm: "placement-form" },
       "@/components/alumni/status-action": { StatusAction: "status-action" },
       "@/components/alumni/status-history": { StatusHistory: "status-history" },
-    }).default({ params: Promise.resolve({ id: alumniId }) });
+    }).default({ params: Promise.resolve({ id: alumniId }), searchParams: Promise.resolve({}) });
   }
   return { ...actions, detail, calls, rpcs, invalidated, config, supabase };
 }

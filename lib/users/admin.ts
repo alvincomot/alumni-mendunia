@@ -31,18 +31,69 @@ export function administrationMessage(error: unknown): string {
   return "Layanan Auth belum dapat menyelesaikan permintaan. Periksa koneksi, log Auth, serta SMTP dan pengirim email di Supabase. Detail layanan tidak ditampilkan di aplikasi.";
 }
 
-// Callers must independently authorize the current administrator before using this client.
+function createTrustedAdminFetch(origin: string, secret: string) {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const target = new URL(
+      input instanceof Request ? input.url : input.toString(),
+    );
+    if (target.origin !== origin)
+      throw new AdministrationError(
+        "Permintaan administrasi Supabase mengarah ke project yang tidak sesuai.",
+      );
+
+    const headers = new Headers(
+      input instanceof Request ? input.headers : undefined,
+    );
+    new Headers(init?.headers).forEach((value, name) =>
+      headers.set(name, value),
+    );
+    // Pin the server credential last so no request/session header can replace it.
+    headers.set("apikey", secret);
+    headers.set("Authorization", `Bearer ${secret}`);
+    headers.delete("cookie");
+
+    return fetch(input, {
+      ...init,
+      credentials: "omit",
+      headers,
+    });
+  };
+}
+
+export async function credentialDigest(password: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(password),
+  );
+  return Array.from(new Uint8Array(digest), (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+// Each caller must authorize its operation, including controlled public activation RPCs.
 export function createAdminClient() {
   const secret = process.env.SUPABASE_SECRET_KEY;
-  if (!secret || !process.env.NEXT_PUBLIC_SUPABASE_URL)
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!secret || !configuredUrl)
     throw new AdministrationError(
-      "Direktori email belum dikonfigurasi. Administrator server perlu mengatur SUPABASE_SECRET_KEY dan NEXT_PUBLIC_SUPABASE_URL, lalu memulai ulang atau melakukan redeploy aplikasi.",
+      "Layanan administrasi Auth belum dikonfigurasi. Administrator server perlu mengatur SUPABASE_SECRET_KEY dan NEXT_PUBLIC_SUPABASE_URL, lalu memulai ulang atau melakukan redeploy aplikasi.",
     );
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, secret, {
+  let origin: string;
+  try {
+    origin = new URL(configuredUrl).origin;
+  } catch {
+    throw new AdministrationError(
+      "NEXT_PUBLIC_SUPABASE_URL tidak valid. Periksa konfigurasi project Supabase lalu lakukan redeploy aplikasi.",
+    );
+  }
+  return createClient(configuredUrl, secret, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
+    },
+    global: {
+      fetch: createTrustedAdminFetch(origin, secret),
     },
   });
 }

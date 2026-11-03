@@ -4,30 +4,25 @@
 
 @layer base {
   :root {
-    --background: 216 45% 98%;
-    --foreground: 205 43% 16%;
+    --background: 210 33.33% 97.65%;
+    --foreground: 204 9.09% 10.78%;
     --card: 0 0% 100%;
-    --card-foreground: 205 43% 16%;
+    --card-foreground: 204 9.09% 10.78%;
     --popover: 0 0% 100%;
-    --popover-foreground: 205 43% 16%;
-    --primary: 209 54% 20%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 210 28% 94%;
-    --secondary-foreground: 209 54% 20%;
-    --muted: 210 28% 94%;
-    --muted-foreground: 207 14% 40%;
-    --accent: 186 89% 29%;
+    --popover-foreground: 204 9.09% 10.78%;
+    --primary: 210 54% 19.61%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 18.18% 95.69%;
+    --secondary-foreground: 210 54% 19.61%;
+    --muted: 210 18.18% 95.69%;
+    --muted-foreground: 211.76 17.17% 38.82%;
+    --accent: 185.95 89.12% 28.82%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 4 76% 40%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 211 26% 88%;
-    --input: 211 26% 82%;
-    --ring: 186 89% 29%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --destructive: 0 75.47% 41.57%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214.29 31.82% 91.37%;
+    --input: 212.73 26.83% 83.92%;
+    --ring: 185.95 89.12% 28.82%;
     --radius: 0.5rem;
   }
 }
@@ -37,6 +32,59 @@
     @apply border-border;
   }
   body {
-    @apply min-w-0 bg-background text-foreground;
+    @apply min-w-0 bg-background font-sans text-sm leading-6 text-foreground;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .form-control {
+    @apply min-h-11 w-full min-w-0 rounded-lg border border-input bg-white px-3 py-2 text-base text-foreground transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground md:text-sm;
+  }
+  .form-control[aria-invalid="true"] {
+    @apply border-destructive;
+  }
+  .type-brand {
+    @apply font-heading text-base font-bold leading-6 tracking-tight;
+  }
+  .type-page-title {
+    @apply font-heading text-2xl font-bold leading-8 tracking-tight;
+  }
+  .type-section-title {
+    @apply font-heading text-lg font-semibold leading-7 tracking-tight;
+  }
+  .type-card-title {
+    @apply font-heading text-base font-semibold leading-6;
+  }
+  .type-auth-hero {
+    @apply font-heading text-4xl font-bold leading-[1.08] tracking-[-0.035em] xl:text-5xl;
+  }
+  .type-body {
+    @apply font-sans text-sm font-normal leading-6;
+  }
+  .type-label {
+    @apply font-sans text-[13px] font-medium leading-5;
+  }
+  .type-supporting {
+    @apply font-sans text-[13px] font-normal leading-5;
+  }
+  .type-meta {
+    @apply font-sans text-xs font-normal leading-5;
+  }
+  .type-stat {
+    @apply font-sans text-[1.75rem] font-bold leading-9 tabular-nums sm:text-[2rem] sm:leading-10;
   }
 }

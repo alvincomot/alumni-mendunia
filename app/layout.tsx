@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -12,8 +13,14 @@ export const metadata: Metadata = {
   description: "Sistem pendataan dan monitoring alumni SMK DKI Jakarta",
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
+  display: "swap",
+  subsets: ["latin"],
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   display: "swap",
   subsets: ["latin"],
 });
@@ -25,8 +32,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={`${geistSans.className} antialiased`}>
-        {children}
+      <body
+        className={`${inter.variable} ${plusJakartaSans.variable} font-sans antialiased`}
+      >
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

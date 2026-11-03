@@ -5,12 +5,10 @@ import { Button } from "@/components/ui/button";
 
 export default function DashboardError({ reset }: { reset: () => void }) {
   return (
-    <main className="flex min-h-svh items-center justify-center px-5 py-10">
-      <section className="w-full max-w-xl overflow-hidden rounded-lg border bg-white">
-        <div className="h-2 bg-primary" aria-hidden="true" />
+    <main className="flex min-h-[60svh] items-center justify-center py-8">
+      <section className="w-full max-w-xl rounded-xl border bg-card">
         <div className="p-6 sm:p-8">
-          <div className="h-1 w-12 rounded-sm bg-accent" aria-hidden="true" />
-          <h1 className="mt-5 text-2xl font-semibold text-primary">
+          <h1 className="type-page-title text-foreground">
             Dashboard tidak dapat ditampilkan
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -21,7 +19,7 @@ export default function DashboardError({ reset }: { reset: () => void }) {
             <Button
               type="button"
               onClick={reset}
-              className="min-h-11 bg-accent text-accent-foreground hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              className="min-h-11"
             >
               Muat kembali
             </Button>

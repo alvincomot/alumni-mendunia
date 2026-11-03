@@ -27,10 +27,20 @@ dan pengguna Dinas.
 ## 3. Visual Style
 
 Primary: #17324D
-Accent: #087E8B
-Background: #F7F9FC
+Accent / focus: #087E8B
+Background: #F7F9FB
 Surface: #FFFFFF
-Text Primary: #172B3A
+Text Primary: #191C1E
+
+Tombol utama dan navigasi aktif menggunakan token `primary` yang sama.
+Gunakan `Button` bersama tanpa override warna lokal. Tombol outline memakai
+border halus dan teks gelap; aksi penolakan memakai `destructive` (#BA1A1A).
+State disabled memakai permukaan netral dan teks muted yang tetap terbaca.
+Input menggunakan `form-control`, tinggi minimum 44px, radius 8px, dan fokus
+biru yang terlihat. Card memakai radius 12px, border halus, dan tanpa shadow;
+shadow terbatas pada dialog, popover, dan toast yang melayang di atas konten.
+Sidebar dan topbar memakai permukaan putih. Navy gelap menjadi identitas utama,
+sedangkan teal dipakai secara terbatas untuk accent dan fokus yang terlihat.
 
 Gunakan warna semantik untuk status dan notifikasi.
 
@@ -41,16 +51,38 @@ membantu membedakan hierarki komponen.
 
 ## 4. Typography
 
-Font utama: Geist atau Inter.
+Gunakan tepat dua keluarga font melalui `next/font/google`:
 
-Gunakan hierarki tipografi yang konsisten:
+- Plus Jakarta Sans (`font-heading`) untuk branding, judul halaman,
+  judul bagian, judul kartu, dialog, dan heading autentikasi.
+- Inter (`font-sans`) untuk navigasi, isi, tabel, form, tombol,
+  statistik, bagan, notifikasi, metadata, dan pesan validasi.
 
-- Page heading: 24–28px
-- Section heading: 18–20px
-- Body text: 14–16px
-- Supporting text: 12–14px
+Skala standar:
 
-Prioritaskan keterbacaan tabel, form, dan informasi dashboard.
+- Branding aplikasi: 16px / 700 / line-height 24px
+- Judul halaman (H1): 24px / 700 / line-height 32px
+- Judul bagian (H2): 18px / 600 / line-height 28px
+- Judul kartu (H3): 16px / 600 / line-height 24px
+- Hero autentikasi: 36px, meningkat ke 48px pada layar lebar / 700
+- Angka statistik: 28px, meningkat ke 32px pada layar lebar / 700
+- Navigasi: 14px / 500–600
+- Isi dan tabel: 14px / 400–500 / line-height 24px
+- Label form: 13px / 500 / line-height 20px
+- Nilai input: 14px / 400; 16px di layar kecil bila diperlukan
+  untuk mencegah pembesaran otomatis browser
+- Tombol: 14px / 600
+- Teks pendukung: 13px / 400 / line-height 20px
+- Metadata dan waktu: 12px / 400 / line-height 20px
+
+Gunakan utility bersama `type-brand`, `type-page-title`,
+`type-section-title`, `type-card-title`, `type-auth-hero`, `type-body`,
+`type-label`, `type-supporting`, `type-meta`, dan `type-stat`. Gunakan
+`tracking-tight` hanya pada heading menonjol serta `tabular-nums` untuk
+angka statistik dan angka yang perlu sejajar. Semua halaman baru mewarisi
+Inter dari root layout; jangan mengimpor font kembali pada level halaman.
+Pertahankan line-height yang terbaca, pembungkusan teks panjang, dan ukuran
+minimum yang tetap nyaman pada perangkat seluler.
 
 ## 5. Layout System
 
@@ -172,6 +204,32 @@ tidak hanya dibedakan menggunakan warna.
 - Usahakan kontras teks memenuhi WCAG AA.
 
 Gunakan animasi secara halus dan seperlunya.
+
+### Reusable Form UX
+
+- Dialog untuk penyimpanan rutin harus menutup otomatis setelah server
+  mengonfirmasi keberhasilan, mereset state formulir, dan memperbarui data
+  tanpa reload penuh browser.
+- Jika penyimpanan gagal, pertahankan dialog dan nilai input agar pengguna
+  dapat memperbaiki atau mencoba kembali.
+- Gunakan toast singkat berbahasa Indonesia untuk keberhasilan rutin. Error
+  validasi tetap ditampilkan di dekat field terkait.
+- Gunakan validasi aplikasi dengan pesan inline berbahasa Indonesia dan
+  `noValidate` ketika constraint browser digantikan oleh Zod atau validasi
+  aplikasi.
+- Input kata sandi yang diisi pengguna harus menyediakan tombol tampilkan
+  atau sembunyikan dengan target sentuh yang nyaman dan label aksesibel.
+- Kata sandi pilihan pengguna minimal 8 karakter tanpa kewajiban kombinasi
+  huruf besar, huruf kecil, angka, atau simbol. Kata sandi sementara yang
+  dibuat sistem tetap harus acak dan kuat.
+- Hindari langkah konfirmasi tambahan untuk penyimpanan rutin. Pertahankan
+  konfirmasi untuk tindakan yang mengubah akses, status penting, atau data
+  sensitif.
+- Penyerahan kredensial sekali lihat dan alur keamanan lain tidak boleh
+  menutup otomatis sebelum pengguna menyelesaikan tindakan yang diwajibkan.
+- Gunakan ukuran kontrol sekurangnya 44px, fokus yang terlihat, label yang
+  langsung, serta pesan singkat agar formulir nyaman digunakan oleh pengguna
+  lanjut usia dan pengguna dengan pengalaman teknis terbatas.
 
 ## 12. Anti-Slop Design Direction
 

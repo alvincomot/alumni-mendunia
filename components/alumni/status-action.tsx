@@ -1,11 +1,15 @@
 "use client";
 
+import { FormSession, useFormActivity } from "@/components/ui/form-session";
+
 import { useId, useRef, useState } from "react";
+import { useToast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingIndicator } from "@/components/ui/loading";
 import { statusLabels, type PlacementStatus } from "@/lib/alumni/schema";
 import {
   statusChangeSchema,
@@ -25,7 +29,7 @@ type Fields = Pick<
   "note" | "actual_departure" | "contract_end_date"
 >;
 
-export function StatusAction({
+function StatusActionContent({
   placementId,
   status,
   alumniName,
@@ -37,6 +41,8 @@ export function StatusAction({
   context: "list" | "detail";
 }) {
   const router = useRouter();
+  const active = useFormActivity();
+  const { toast } = useToast();
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -103,9 +109,19 @@ export function StatusAction({
     setResult(null);
     try {
       const response = await changePlacementStatus(parsed.data);
-      setResult(response);
-      if (response.refresh || response.success) router.refresh();
+      if (!active.current) return;
+      if (response.success) {
+        setResult(null);
+        reset({ note: "", actual_departure: "", contract_end_date: "" });
+        dialog.current?.close();
+        toast(response.message);
+        router.refresh();
+      } else {
+        setResult(response);
+        if (response.refresh) router.refresh();
+      }
     } catch {
+      if (!active.current) return;
       setResult({
         success: false,
         refresh: true,
@@ -174,11 +190,12 @@ export function StatusAction({
         }}
         onClose={() => {
           setOpen(false);
+          setResult(null);
           feedback.current?.focus();
         }}
-        className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-lg border bg-white p-5 text-foreground backdrop:bg-black/40 sm:p-8"
+        className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border bg-card p-5 text-foreground backdrop:bg-black/40 sm:p-8"
       >
-        <h2 id={`${id}-title`} className="text-xl font-semibold text-primary">
+        <h2 id={`${id}-title`} className="type-section-title text-primary">
           {snapshot ? actionLabels[snapshot.to] : "Ubah status"}
         </h2>
         <p id={`${id}-impact`} className="mt-3 break-words text-sm leading-6">
@@ -235,7 +252,7 @@ export function StatusAction({
                 {...register("note")}
                 maxLength={500}
                 rows={3}
-                className="block w-full resize-y rounded-md border border-input px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                className="form-control block resize-y"
                 aria-invalid={!!errors.note}
                 aria-describedby={errors.note ? `${id}-note-error` : undefined}
               />
@@ -270,13 +287,12 @@ export function StatusAction({
               <Button
                 type="submit"
                 variant={
-                  snapshot?.to === "batal_berangkat"
-                    ? "destructive"
-                    : "default"
+                  snapshot?.to === "batal_berangkat" ? "destructive" : "default"
                 }
                 disabled={pending}
                 className="min-h-11"
               >
+                {pending && <LoadingIndicator size="sm" />}
                 {pending ? "Menyimpan..." : "Ya, konfirmasi"}
               </Button>
             )}
@@ -284,5 +300,15 @@ export function StatusAction({
         </form>
       </dialog>
     </div>
+  );
+}
+
+export function StatusAction(
+  props: React.ComponentProps<typeof StatusActionContent>,
+) {
+  return (
+    <FormSession key={props.placementId}>
+      <StatusActionContent {...props} />
+    </FormSession>
   );
 }

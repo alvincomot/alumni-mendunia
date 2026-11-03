@@ -1,6 +1,9 @@
 "use client";
 
+import { FormSession, useFormActivity } from "@/components/ui/form-session";
+
 import { useRef, useState } from "react";
+import { alumniReturnPath } from "@/lib/alumni/navigation";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Controller } from "react-hook-form";
@@ -8,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CountryCombobox } from "@/components/alumni/country-combobox";
+import { LoadingIndicator } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
 import {
   placementSchema,
   statusLabels,
@@ -16,23 +21,32 @@ import {
 } from "@/lib/alumni/schema";
 import { registerPlacement } from "@/app/dashboard/alumni/actions";
 
-export function PlacementForm({
+function PlacementFormContent({
   alumniId,
   expectedCurrentId = null,
+  returnTo,
 }: {
   alumniId: string;
   expectedCurrentId?: string | null;
+  returnTo?: string;
 }) {
   const router = useRouter();
+  const active = useFormActivity();
+  const [completed, setCompleted] = useState(false);
+  const { toast } = useToast();
   const busy = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const isSubmitting = submitting;
   const [result, setResult] = useState<MutationResult | null>(null);
   const {
     register,
     handleSubmit,
     control,
     setError,
+    clearErrors,
+    reset,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<PlacementInput>({
     defaultValues: {
       status: "persiapan_berangkat",
@@ -48,7 +62,8 @@ export function PlacementForm({
   });
   const status = watch("status");
   async function submit(values: PlacementInput) {
-    if (busy.current || result?.success) return;
+    if (busy.current || completed) return;
+    clearErrors();
     const parsed = placementSchema.safeParse(values);
     if (!parsed.success) {
       parsed.error.issues.forEach((issue) =>
@@ -61,6 +76,7 @@ export function PlacementForm({
       return;
     }
     busy.current = true;
+    setSubmitting(true);
     setResult(null);
     try {
       const response = await registerPlacement(
@@ -68,9 +84,22 @@ export function PlacementForm({
         expectedCurrentId,
         parsed.data,
       );
-      setResult(response);
-      if (response.success) router.refresh();
+      if (!active.current) return;
+      if (response.success) {
+        setCompleted(true);
+        setResult(null);
+        reset();
+        toast(
+          expectedCurrentId
+            ? "Penempatan berikutnya berhasil dicatat."
+            : "Penempatan awal berhasil disimpan.",
+          { destination: "/dashboard/alumni" },
+        );
+        router.replace(alumniReturnPath(returnTo));
+        router.refresh();
+      } else setResult(response);
     } catch {
+      if (!active.current) return;
       setResult({
         success: false,
         message:
@@ -78,6 +107,7 @@ export function PlacementForm({
       });
     } finally {
       busy.current = false;
+      setSubmitting(false);
     }
   }
   return (
@@ -92,7 +122,7 @@ export function PlacementForm({
         lanjutkan dari halaman ini tanpa mendaftarkan alumni kembali.
       </p>
       <fieldset
-        disabled={isSubmitting || result?.success}
+        disabled={isSubmitting || completed}
         className="grid gap-4 sm:grid-cols-2"
       >
         <div className="space-y-2">
@@ -109,7 +139,7 @@ export function PlacementForm({
                   field.onChange(nextValue);
                   setResult(null);
                 }}
-                disabled={isSubmitting || result?.success}
+                disabled={isSubmitting || completed}
                 required
                 onBlur={field.onBlur}
                 invalid={!!errors.destination_country}
@@ -156,7 +186,7 @@ export function PlacementForm({
           <select
             {...register("status")}
             id="initial-status"
-            className="block min-h-11 w-full rounded-md border bg-white px-3 text-sm focus-visible:outline-accent"
+            className="form-control block"
           >
             {Object.entries(statusLabels).map(([value, label]) => (
               <option value={value} key={value}>
@@ -221,19 +251,17 @@ export function PlacementForm({
         </p>
       </fieldset>
       {result && (
-        <p
-          role={result.success ? "status" : "alert"}
-          className={`text-sm ${result.success ? "text-green-800" : "text-red-800"}`}
-        >
+        <p role="alert" className="text-sm text-red-800">
           {result.message}
         </p>
       )}
       <div className="flex flex-wrap gap-3">
         <Button
           type="submit"
-          disabled={isSubmitting || result?.success}
+          disabled={isSubmitting || completed}
           className="min-h-11"
         >
+          {isSubmitting && <LoadingIndicator size="sm" />}
           {isSubmitting
             ? "Menyimpan..."
             : expectedCurrentId
@@ -251,5 +279,17 @@ export function PlacementForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+export function PlacementForm(
+  props: React.ComponentProps<typeof PlacementFormContent>,
+) {
+  return (
+    <FormSession
+      key={`${props.alumniId}:${props.expectedCurrentId ?? "initial"}`}
+    >
+      <PlacementFormContent {...props} />
+    </FormSession>
   );
 }

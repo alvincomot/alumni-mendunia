@@ -5,7 +5,7 @@ import indonesianLocale from "i18n-iso-countries/langs/id.json";
 countries.registerLocale(englishLocale);
 countries.registerLocale(indonesianLocale);
 
-export type CountryOption = {
+type CountryOption = {
   code: string;
   label: string;
   searchTerms: string[];
@@ -35,7 +35,7 @@ function unique(values: (string | undefined)[]) {
   return [...new Set(values.filter((value): value is string => !!value))];
 }
 
-export function normalizeCountrySearch(value: string) {
+function normalizeCountrySearch(value: string) {
   return value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")

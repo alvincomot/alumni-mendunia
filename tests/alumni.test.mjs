@@ -186,6 +186,59 @@ test("placement validates real dates, status/date compatibility, chronology and 
     );
 });
 
+test("initial registration accepts only the date assigned to its selected status", () => {
+  const cases = {
+    persiapan_berangkat: {
+      allowedField: "planned_departure",
+      value: "2030-01-01",
+      confirm_existing_condition: false,
+    },
+    aktif_bekerja: {
+      allowedField: "actual_departure",
+      value: "2020-01-01",
+      confirm_existing_condition: true,
+    },
+    selesai_kontrak: {
+      allowedField: "contract_end_date",
+      value: "2021-01-01",
+      confirm_existing_condition: true,
+    },
+    batal_berangkat: {
+      allowedField: null,
+      value: null,
+      confirm_existing_condition: true,
+    },
+  };
+  const dateFields = [
+    "planned_departure",
+    "actual_departure",
+    "employment_start",
+    "contract_end_date",
+  ];
+
+  for (const [status, current] of Object.entries(cases)) {
+    const valid = {
+      ...placement,
+      status,
+      confirm_existing_condition: current.confirm_existing_condition,
+      ...(current.allowedField ? { [current.allowedField]: current.value } : {}),
+    };
+    assert.equal(schema.initialPlacementSchema.safeParse(valid).success, true);
+
+    for (const field of dateFields.filter(
+      (candidate) => candidate !== current.allowedField,
+    )) {
+      assert.equal(
+        schema.initialPlacementSchema.safeParse({
+          ...valid,
+          [field]: "2020-01-01",
+        }).success,
+        false,
+      );
+    }
+  }
+});
+
 test("country dataset is complete, searchable and canonicalizes supported aliases", () => {
   assert.equal(countryData.countryOptions.length, 249);
   assert.equal(
@@ -215,6 +268,11 @@ test("country dataset is complete, searchable and canonicalizes supported aliase
     arbitrary.error.issues[0].message,
     "Pilih negara tujuan yang valid",
   );
+  assert.equal(schema.destinationCountrySchema.safeParse("").success, false);
+  assert.equal(
+    schema.destinationCountrySchema.parse("Japan"),
+    "Jepang",
+  );
 });
 
 test("country combobox owns selection and required Indonesian feedback", () => {
@@ -232,6 +290,8 @@ test("country combobox owns selection and required Indonesian feedback", () => {
   assert.match(comboboxSource, /Cari negara\.\.\./);
   assert.match(comboboxSource, /Negara tidak ditemukan/);
   assert.match(comboboxSource, /onSelect=\{\(\) => select\(option\.label\)\}/);
+  assert.match(comboboxSource, /if \(wasOpen && !nextOpen\) onBlur\?\.\(\)/);
+  assert.doesNotMatch(comboboxSource, /onBlur=\{onBlur\}/);
 });
 
 function harness(options = {}) {
@@ -373,6 +433,7 @@ function harness(options = {}) {
   });
   const actions = load("app/dashboard/alumni/actions.ts", {
     "@/lib/alumni/access": access,
+      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
     "@/lib/alumni/schema": schema,
     "next/cache": { revalidatePath: (value) => revalidated.push(value) },
   });
@@ -385,6 +446,7 @@ function harness(options = {}) {
     const authAccess = load("lib/auth/access.ts", {
       "server-only": {},
       "@/lib/alumni/access": access,
+      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
       "next/navigation": navigation,
     });
     const model = load("lib/monitoring/model.ts", {
@@ -405,6 +467,7 @@ function harness(options = {}) {
       "@/components/monitoring/filters": { MonitoringFilterForm: () => null },
       "@/components/data/pagination": { Pagination: () => null },
       "@/lib/alumni/access": access,
+      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
       "@/lib/alumni/schema": schema,
       "@/lib/countries": countryData,
       "next/navigation": {
@@ -421,7 +484,10 @@ function harness(options = {}) {
         AlumniAccessDenied: () => null,
         PlacementBadge: () => null,
       },
-      "@/components/alumni/alumni-form": { AlumniForm: () => null },
+      "@/components/alumni/alumni-form": { AlumniEditor: () => null },
+      "@/components/alumni/alumni-registration-form": {
+        AlumniRegistrationForm: () => null,
+      },
       "@/components/alumni/placement-form": { PlacementForm: () => null },
       "@/components/alumni/status-action": { StatusAction: () => null },
       "@/components/alumni/status-history": { StatusHistory: () => null },
@@ -606,6 +672,92 @@ test("placement uses exact RPC parameters, nullable optional values, and no dire
   assert.equal(h.mutations.length, 0);
 });
 
+test("initial placement action rejects stale dates before calling the RPC", async () => {
+  for (const input of [
+    {
+      ...placement,
+      status: "aktif_bekerja",
+      confirm_existing_condition: true,
+      planned_departure: "2020-01-01",
+    },
+    {
+      ...placement,
+      status: "selesai_kontrak",
+      confirm_existing_condition: true,
+      actual_departure: "2020-01-01",
+    },
+    {
+      ...placement,
+      status: "batal_berangkat",
+      confirm_existing_condition: true,
+      contract_end_date: "2020-01-01",
+    },
+  ]) {
+    const h = harness();
+    assert.equal(
+      (await h.registerInitialPlacement(alumniId, input)).success,
+      false,
+    );
+    assert.equal(h.rpcs.length, 0);
+  }
+});
+
+test("initial placement payload sends only the selected status date", async () => {
+  const cases = [
+    {
+      status: "persiapan_berangkat",
+      field: "planned_departure",
+      parameter: "p_planned_departure",
+      value: "2030-01-01",
+      confirm_existing_condition: false,
+    },
+    {
+      status: "aktif_bekerja",
+      field: "actual_departure",
+      parameter: "p_actual_departure",
+      value: "2020-01-01",
+      confirm_existing_condition: true,
+    },
+    {
+      status: "selesai_kontrak",
+      field: "contract_end_date",
+      parameter: "p_contract_end_date",
+      value: "2021-01-01",
+      confirm_existing_condition: true,
+    },
+    {
+      status: "batal_berangkat",
+      field: null,
+      parameter: null,
+      value: null,
+      confirm_existing_condition: true,
+    },
+  ];
+  const dateParameters = [
+    "p_planned_departure",
+    "p_actual_departure",
+    "p_employment_start",
+    "p_contract_end_date",
+  ];
+
+  for (const current of cases) {
+    const h = harness();
+    const result = await h.registerInitialPlacement(alumniId, {
+      ...placement,
+      status: current.status,
+      confirm_existing_condition: current.confirm_existing_condition,
+      ...(current.field ? { [current.field]: current.value } : {}),
+    });
+    assert.equal(result.success, true);
+    if (current.parameter)
+      assert.equal(h.rpcs[0].args[current.parameter], current.value);
+    for (const parameter of dateParameters.filter(
+      (candidate) => candidate !== current.parameter,
+    ))
+      assert.equal(h.rpcs[0].args[parameter], null);
+  }
+});
+
 test("placement RPC persists a canonical Indonesian country name", async () => {
   const h = harness();
   assert.equal(
@@ -665,6 +817,124 @@ test("partial failure allows placement-only retry without duplicate alumni or le
   }
 });
 
+test("single registration action creates identity and placement from one validated payload", async () => {
+  const h = harness();
+  const result = await h.registerAlumniWithPlacement(null, {
+    identity,
+    placement,
+  });
+  assert.equal(result.success, true);
+  assert.equal(result.id, alumniId);
+  assert.equal(result.identitySaved, true);
+  assert.deepEqual(h.mutations, [
+    { table: "alumni", type: "insert", value: identity },
+  ]);
+  assert.equal(h.rpcs.length, 1);
+  assert.equal(h.rpcs[0].name, "create_placement_guarded");
+  assert.ok(h.revalidated.includes(`/dashboard/alumni/${alumniId}`));
+});
+
+test("combined registration retries placement with the saved identity instead of inserting a duplicate", async () => {
+  const h = harness({ rpcError: true });
+  const first = await h.registerAlumniWithPlacement(null, {
+    identity,
+    placement,
+  });
+  assert.equal(first.success, false);
+  assert.equal(first.id, alumniId);
+  assert.equal(first.identitySaved, true);
+  assert.equal(
+    h.mutations.filter((mutation) => mutation.type === "insert").length,
+    1,
+  );
+
+  h.config.rpcError = false;
+  const retry = await h.registerAlumniWithPlacement(first.id, {
+    identity,
+    placement,
+  });
+  assert.equal(retry.success, true);
+  assert.equal(
+    h.mutations.filter((mutation) => mutation.type === "insert").length,
+    1,
+  );
+  assert.equal(
+    h.mutations.filter((mutation) => mutation.type === "update").length,
+    0,
+  );
+  assert.equal(h.rpcs.length, 2);
+});
+
+test("combined registration applies edited identity once before retrying placement", async () => {
+  const h = harness();
+  const changedIdentity = { ...identity, major: "Teknik Elektronika" };
+  const result = await h.registerAlumniWithPlacement(alumniId, {
+    identity: changedIdentity,
+    placement,
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(h.mutations, [
+    { table: "alumni", type: "update", value: changedIdentity },
+  ]);
+  assert.equal(h.rpcs.length, 1);
+});
+
+test("combined registration remains staff-only and rejects incomplete placement data", async () => {
+  for (const role of ["admin_dinas", "viewer_dinas"]) {
+    const h = harness({ role });
+    const result = await h.registerAlumniWithPlacement(null, {
+      identity,
+      placement,
+    });
+    assert.equal(result.success, false);
+    assert.equal(h.mutations.length, 0);
+    assert.equal(h.rpcs.length, 0);
+  }
+
+  const invalid = harness();
+  const result = await invalid.registerAlumniWithPlacement(null, {
+    identity,
+    placement: { ...placement, destination_country: "Negara Fiktif" },
+  });
+  assert.equal(result.success, false);
+  assert.equal(invalid.mutations.length, 0);
+  assert.equal(invalid.rpcs.length, 0);
+});
+
+test("registration UI keeps both steps on one route and uses one final save action", () => {
+  const source = fs.readFileSync(
+    path.join(root, "components/alumni/alumni-registration-form.tsx"),
+    "utf8",
+  );
+  assert.match(source, /Identitas Alumni/);
+  assert.match(source, /Penempatan Awal/);
+  assert.match(source, /Ringkasan Input/);
+  assert.match(source, /name="placement\.destination_country"/);
+  assert.match(source, /registerAlumniWithPlacement/);
+  assert.match(source, /Simpan Alumni/);
+  assert.match(
+    source,
+    /max-w-\[36\.25rem\] grid-cols-\[max-content_minmax\(0,1fr\)_max-content\]/,
+  );
+  assert.match(source, /className="flex h-12 items-center"/);
+  assert.match(source, /h-\[3px\] w-full rounded-full/);
+  assert.match(source, /step === 2 \? "bg-primary\/30" : "bg-slate-200"/);
+  assert.doesNotMatch(source, /justify-end gap-3/);
+  assert.match(source, /initialPlacementDateFields\[status\]/);
+  assert.match(
+    source,
+    /clearErrors\(\);\s+const parsed = alumniSchema\.safeParse/,
+  );
+  assert.match(source, /validateDestinationCountry\(\)/);
+  assert.match(
+    source,
+    /field\.onChange\(value\);\s+clearErrors\("placement\.destination_country"\)/,
+  );
+  assert.equal(source.match(/type="date"/g)?.length, 1);
+  assert.doesNotMatch(source, /register\("placement\.employment_start"\)/);
+  assert.doesNotMatch(source, /router\.replace\([^)]*new/);
+});
+
 test("server-rendered list/detail apply school ownership; Dinas may read all schools", async () => {
   for (const role of ["admin_dinas", "viewer_dinas", "petugas_sekolah"]) {
     const h = harness({ role });
@@ -687,6 +957,7 @@ test("server-rendered list/detail apply school ownership; Dinas may read all sch
   await assert.rejects(
     foreign.page("app/dashboard/alumni/[id]/page.tsx")({
       params: Promise.resolve({ id: alumniId }),
+      searchParams: Promise.resolve({}),
     }),
     /notFound/,
   );
@@ -698,6 +969,7 @@ test("server-rendered list/detail apply school ownership; Dinas may read all sch
     const h = harness({ role, rowSchool: otherSchoolId });
     await h.page("app/dashboard/alumni/[id]/page.tsx")({
       params: Promise.resolve({ id: alumniId }),
+      searchParams: Promise.resolve({}),
     });
     assert.equal(
       h.calls
@@ -750,14 +1022,14 @@ test("all pages redirect missing sessions; Dinas registration route performs no 
     await assert.rejects(
       h.page(`app/dashboard/alumni/${file}`)({
         params: Promise.resolve({ id: alumniId }),
-        searchParams: Promise.resolve({}),
+      searchParams: Promise.resolve({}),
       }),
       /redirect:\/auth\/login/,
     );
   }
   for (const role of ["admin_dinas", "viewer_dinas"]) {
     const h = harness({ role });
-    await h.page("app/dashboard/alumni/new/page.tsx")();
+    await h.page("app/dashboard/alumni/new/page.tsx")({searchParams:Promise.resolve({})});
     assert.equal(
       h.calls.some((call) => call.table === "alumni"),
       false,

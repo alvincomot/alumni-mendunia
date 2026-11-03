@@ -1,11 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { FormSession, useFormActivity } from "@/components/ui/form-session";
+
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingIndicator } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
 import {
   saveSchool,
   changeSchoolStatus,
@@ -17,15 +21,22 @@ import {
   type SchoolResult,
 } from "@/lib/schools/schema";
 
-export function SchoolDialog({
+function SchoolDialogContent({
   school,
   statusOnly = false,
+  initiallyOpen = false,
+  onClose,
 }: {
   school?: School;
   statusOnly?: boolean;
+  initiallyOpen?: boolean;
+  onClose?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const busy = useRef(false);
   const router = useRouter();
+  const active = useFormActivity();
+  const { toast } = useToast();
   const [result, setResult] = useState<SchoolResult | null>(null);
   const [pending, setPending] = useState(false);
   const {
@@ -33,6 +44,7 @@ export function SchoolDialog({
     handleSubmit,
     reset,
     setError,
+    clearErrors,
     formState: { errors },
   } = useForm<SchoolInput>();
   const title = statusOnly
@@ -41,6 +53,10 @@ export function SchoolDialog({
       ? "Edit sekolah"
       : "Tambah sekolah";
   const identity = `${school?.id ?? "new"}-${statusOnly ? "status" : "edit"}`;
+
+  useEffect(() => {
+    if (initiallyOpen) dialog.current?.showModal();
+  }, [initiallyOpen]);
 
   function open() {
     setResult(null);
@@ -53,7 +69,7 @@ export function SchoolDialog({
   }
 
   async function submit(values: SchoolInput) {
-    if (pending) return;
+    if (busy.current) return;
     const parsed = schoolSchema.safeParse(values);
     if (!statusOnly && !parsed.success) {
       for (const issue of parsed.error.issues) {
@@ -65,6 +81,7 @@ export function SchoolDialog({
       }
       return;
     }
+    busy.current = true;
     setPending(true);
     setResult(null);
     try {
@@ -78,46 +95,71 @@ export function SchoolDialog({
               school?.id ?? null,
               parsed.success ? parsed.data : values,
             );
-      setResult(response);
-      if (response.success) router.refresh();
+      if (!active.current) return;
+      if (response.success) {
+        router.refresh();
+        toast(
+          statusOnly && school
+            ? `Sekolah berhasil ${school.is_active ? "dinonaktifkan" : "diaktifkan"}.`
+            : school
+              ? "Data sekolah berhasil diperbarui."
+              : "Sekolah berhasil ditambahkan.",
+        );
+        setResult(null);
+        reset({ npsn: "", name: "", city: "" });
+        dialog.current?.close();
+      } else {
+        setResult(response);
+      }
     } catch {
+      if (!active.current) return;
       setResult({
         success: false,
         message: "Permintaan gagal. Periksa koneksi dan coba kembali.",
       });
     } finally {
+      busy.current = false;
       setPending(false);
     }
   }
 
   return (
     <>
-      <Button
-        onClick={open}
-        variant={school ? "outline" : "default"}
-        className="min-h-11"
-        aria-label={school ? `${title}: ${school.name}` : title}
-      >
-        {statusOnly
-          ? school?.is_active
-            ? "Nonaktifkan"
-            : "Aktifkan"
-          : school
-            ? "Edit"
-            : "Tambah sekolah"}
-      </Button>
+      {!initiallyOpen && (
+        <Button
+          onClick={open}
+          variant={
+            statusOnly && school?.is_active
+              ? "destructive"
+              : school
+                ? "outline"
+                : "default"
+          }
+          className="min-h-11"
+          aria-label={school ? `${title}: ${school.name}` : title}
+        >
+          {statusOnly
+            ? school?.is_active
+              ? "Nonaktifkan"
+              : "Aktifkan"
+            : school
+              ? "Edit"
+              : "Tambah sekolah"}
+        </Button>
+      )}
       <dialog
         ref={dialog}
+        onClose={onClose}
         aria-labelledby={`${identity}-title`}
         aria-describedby={statusOnly ? `${identity}-impact` : undefined}
         onCancel={(event) => {
-          if (pending) event.preventDefault();
+          if (busy.current) event.preventDefault();
         }}
-        className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-lg border bg-white p-6 text-foreground backdrop:bg-black/40 sm:p-8"
+        className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border bg-card p-6 text-foreground backdrop:bg-black/40 sm:p-8"
       >
         <h2
           id={`${identity}-title`}
-          className="text-xl font-semibold text-primary"
+          className="type-section-title text-primary"
         >
           {title}
         </h2>
@@ -137,10 +179,7 @@ export function SchoolDialog({
                 : `Aktifkan ${school.name}? Petugas dengan profil aktif dapat kembali mengakses data sesuai kewenangannya.`}
             </p>
           ) : (
-            <fieldset
-              disabled={pending || result?.success}
-              className="space-y-4"
-            >
+            <fieldset disabled={pending} className="space-y-4">
               {(
                 [
                   ["npsn", "NPSN", 8],
@@ -153,7 +192,12 @@ export function SchoolDialog({
                     {label} (wajib)
                   </Label>
                   <Input
-                    {...register(field)}
+                    {...register(field, {
+                      onChange: () => {
+                        clearErrors(field);
+                        setResult(null);
+                      },
+                    })}
                     id={`${identity}-${field}`}
                     type="text"
                     inputMode={field === "npsn" ? "numeric" : "text"}
@@ -179,10 +223,7 @@ export function SchoolDialog({
             </fieldset>
           )}
           {result && (
-            <p
-              role={result.success ? "status" : "alert"}
-              className={`text-sm ${result.success ? "text-green-800" : "text-red-800"}`}
-            >
+            <p role="alert" className="text-sm text-red-800">
               {result.message}
             </p>
           )}
@@ -195,20 +236,32 @@ export function SchoolDialog({
               className="min-h-11"
               onClick={() => dialog.current?.close()}
             >
-              {result?.success ? "Tutup" : "Batal"}
+              Batal
             </Button>
-            {!result?.success && (
-              <Button type="submit" disabled={pending} className="min-h-11">
-                {pending
-                  ? "Menyimpan..."
-                  : statusOnly
-                    ? "Konfirmasi"
-                    : "Simpan"}
-              </Button>
-            )}
+            <Button
+              type="submit"
+              variant={
+                statusOnly && school?.is_active ? "destructive" : "default"
+              }
+              disabled={pending}
+              className="min-h-11"
+            >
+              {pending && <LoadingIndicator size="sm" />}
+              {pending ? "Menyimpan..." : statusOnly ? "Konfirmasi" : "Simpan"}
+            </Button>
           </div>
         </form>
       </dialog>
     </>
+  );
+}
+
+export function SchoolDialog(
+  props: React.ComponentProps<typeof SchoolDialogContent>,
+) {
+  return (
+    <FormSession key={props.school?.id ?? "new"}>
+      <SchoolDialogContent {...props} />
+    </FormSession>
   );
 }
