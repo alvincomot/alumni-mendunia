@@ -1,3 +1,4 @@
+import { alumniListPath, alumniFormPath } from "@/lib/alumni/navigation";
 import Link from "next/link";
 import { requireAccess } from "@/lib/auth/access";
 import { loadMonitoring } from "@/lib/monitoring/data";
@@ -21,6 +22,7 @@ export default async function AlumniPage({
   const access = await requireAccess();
   const params = await searchParams;
   const filters = parseFilters(params);
+  const returnTo = alumniListPath(params);
   if (access.canWrite) filters.school = "";
   const all = await loadMonitoring(access);
   const rows = filterRows(all, filters);
@@ -36,7 +38,7 @@ export default async function AlumniPage({
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-primary">Data Alumni</h1>
+          <h1 className="type-page-title text-primary">Data Alumni</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {access.canWrite
               ? "Kelola identitas, penempatan, dan perkembangan alumni sekolah Anda."
@@ -45,7 +47,9 @@ export default async function AlumniPage({
         </div>
         {access.canWrite && (
           <Button asChild className="min-h-11">
-            <Link href="/dashboard/alumni/new">Tambah alumni</Link>
+            <Link href={alumniFormPath("/dashboard/alumni/new", returnTo)}>
+              Tambah alumni
+            </Link>
           </Button>
         )}
       </div>
@@ -57,10 +61,8 @@ export default async function AlumniPage({
         showSearch
       />
       {rows.length === 0 ? (
-        <section className="rounded-lg border bg-white p-6">
-          <h2 className="text-lg font-semibold">
-            Belum ada alumni sesuai filter
-          </h2>
+        <section className="rounded-xl border bg-card p-6">
+          <h2 className="type-section-title">Belum ada alumni sesuai filter</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Ubah filter atau gunakan Tambah alumni jika Anda petugas sekolah.
           </p>
@@ -70,7 +72,7 @@ export default async function AlumniPage({
           role="region"
           aria-label="Daftar alumni, geser untuk melihat seluruh kolom"
           tabIndex={0}
-          className="overflow-x-auto rounded-lg border bg-white"
+          className="min-w-0 overflow-x-auto rounded-xl border bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
           <table className="w-full min-w-[950px] text-left text-sm">
             <caption className="sr-only">
@@ -129,7 +131,10 @@ export default async function AlumniPage({
                       <div className="flex flex-wrap gap-2">
                         <Button asChild variant="outline" className="min-h-11">
                           <Link
-                            href={"/dashboard/alumni/" + row.id}
+                            href={alumniFormPath(
+                              "/dashboard/alumni/" + row.id,
+                              returnTo,
+                            )}
                             aria-label={"Lihat detail " + row.full_name}
                           >
                             Detail
