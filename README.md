@@ -24,7 +24,7 @@ Proyek ini dikembangkan sebagai prototipe untuk membantu sekolah melakukan penda
 
 ## Main Features
 
-Fitur yang direncanakan meliputi:
+Fitur yang sudah tersedia dalam implementasi prototipe:
 
 - Autentikasi dan otorisasi berdasarkan role
 - Pendataan alumni oleh petugas sekolah
@@ -67,12 +67,12 @@ Install dependencies:
 npm install
 ```
 
-Buat file `.env.local` berdasarkan `.env.example`, kemudian isi konfigurasi Supabase:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your-project-url
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-```
+Buat file `.env.local` berdasarkan `.env.example`. Isi URL dan publishable key
+Supabase, `SUPABASE_SECRET_KEY` khusus server, origin aplikasi `APP_SITE_URL`,
+serta `SUPABASE_AUTH_EMAIL_OTP_EXPIRY_SECONDS` yang sama dengan pengaturan Auth.
+Lihat [panduan setup](docs/mvp-setup.md) dan
+[aktivasi sekolah](docs/school-self-activation.md) untuk prasyarat migrasi,
+undangan, dan konfigurasi SMTP.
 
 Jangan memasukkan database password atau secret key ke variabel `NEXT_PUBLIC_*`.
 
@@ -86,20 +86,29 @@ Buka `http://localhost:3000` pada browser.
 
 ## Project Documentation
 
-Dokumentasi pengembangan akan disimpan dalam folder `docs/`, termasuk:
+Dokumentasi implementasi dan verifikasi tersedia di `docs/`:
 
-- Software Requirements Specification (SRS)
-- Use Case dan Activity Diagram
-- Entity Relationship Diagram (ERD)
-- Dokumentasi database dan migration
+- [Setup aplikasi dan database](docs/mvp-setup.md)
+- [Alur aktivasi sekolah dan prosedur rilis](docs/school-self-activation.md)
+- [Konfigurasi email pemulihan](docs/password-recovery-email-setup.md)
+- [Verifikasi manajemen pengguna](docs/user-management-verification.md)
+- [Cleanup aplikasi dan audit regresi terbaru](docs/application-cleanup-audit.md)
+- [State formulir dan navigasi setelah simpan](docs/form-state-navigation-audit.md)
+
+SRS, Activity Diagram, dan ERD formal belum tersedia dalam repository.
+Laporan verifikasi lama mencatat kondisi saat laporan dibuat; gunakan panduan
+aktivasi sekolah untuk alur autentikasi saat ini.
 
 Instruksi pengembangan tersedia dalam `AGENTS.md`, sedangkan pedoman desain antarmuka berada dalam `DESIGN.md`.
 
 ## Development Status
 
-**Status: Early Development / Prototype**
+**Status: Prototipe fungsional, verifikasi hosted masih diperlukan**
 
-Proyek masih dalam tahap pengembangan awal. Skema database, keamanan RLS, dan fitur bisnis Alumni Mendunia masih dalam proses implementasi.
+Skema database, RLS, dan fitur bisnis telah diimplementasikan serta memiliki
+pengujian lokal. Kelulusan tes lokal tidak membuktikan migrasi sudah diterapkan
+di hosted Supabase atau email benar-benar terkirim. Ikuti pemeriksaan rilis
+dalam dokumentasi sebelum memakai aplikasi di produksi.
 
 Selama tahap prototipe, sistem hanya menggunakan data fiktif. Penggunaan data pribadi alumni yang sebenarnya memerlukan persetujuan, pengamanan, dan infrastruktur yang sesuai ketentuan instansi.
 
