@@ -2,20 +2,24 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { LoadingIndicator } from "@/components/ui/loading";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-export function LogoutButton() {
+export function LogoutButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
+  const busy = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const logout = async () => {
-    const supabase = createClient();
+    if (busy.current) return;
+    busy.current = true;
     setIsLoading(true);
     setError(null);
 
     try {
+      const supabase = createClient();
       const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) throw signOutError;
       router.replace("/auth/login");
@@ -23,6 +27,7 @@ export function LogoutButton() {
     } catch {
       setError("Gagal keluar. Silakan coba lagi.");
     } finally {
+      busy.current = false;
       setIsLoading(false);
     }
   };
@@ -34,8 +39,13 @@ export function LogoutButton() {
         variant="outline"
         onClick={logout}
         disabled={isLoading}
-        className="min-h-11 border-slate-300 bg-white text-primary shadow-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className={
+          compact
+            ? "shrink-0 px-3"
+            : "min-h-11 border-slate-300 bg-white text-primary shadow-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        }
       >
+        {isLoading && <LoadingIndicator size="sm" />}
         {isLoading ? "Keluar..." : "Keluar"}
       </Button>
       {error && (
