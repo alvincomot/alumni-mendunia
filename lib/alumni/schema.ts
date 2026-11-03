@@ -26,6 +26,38 @@ export const statusLabels = {
   batal_berangkat: "Batal berangkat",
 } as const;
 export type PlacementStatus = keyof typeof statusLabels;
+export const initialPlacementDateFields = {
+  persiapan_berangkat: {
+    name: "planned_departure",
+    label: "Rencana keberangkatan",
+  },
+  aktif_bekerja: {
+    name: "actual_departure",
+    label: "Keberangkatan aktual",
+  },
+  selesai_kontrak: {
+    name: "contract_end_date",
+    label: "Selesai kontrak",
+  },
+  batal_berangkat: null,
+} as const satisfies Record<
+  PlacementStatus,
+  {
+    name:
+      | "planned_departure"
+      | "actual_departure"
+      | "contract_end_date";
+    label: string;
+  } | null
+>;
+
+const placementDateFieldNames = [
+  "planned_departure",
+  "actual_departure",
+  "employment_start",
+  "contract_end_date",
+] as const;
+
 export const optionalDateSchema = z
   .string()
   .refine(
@@ -37,16 +69,19 @@ export const optionalDateSchema = z
         new Date(value).toISOString().slice(0, 10) === value),
     "Tanggal tidak valid.",
   );
+
+export const destinationCountrySchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => getCanonicalCountryName(value) !== null,
+    "Pilih negara tujuan yang valid",
+  )
+  .transform((value) => getCanonicalCountryName(value)!);
+
 export const placementSchema = z
   .object({
-    destination_country: z
-      .string()
-      .trim()
-      .refine(
-        (value) => getCanonicalCountryName(value) !== null,
-        "Pilih negara tujuan yang valid",
-      )
-      .transform((value) => getCanonicalCountryName(value)!),
+    destination_country: destinationCountrySchema,
     work_sector: z.string().trim().max(150, "Sektor maksimal 150 karakter."),
     company_name: z
       .string()
@@ -122,8 +157,32 @@ export const placementSchema = z
       );
   });
 
+export const initialPlacementSchema = placementSchema.superRefine(
+  (value, ctx) => {
+    const allowedField = initialPlacementDateFields[value.status]?.name;
+
+    for (const field of placementDateFieldNames) {
+      if (field !== allowedField && value[field]) {
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message: "Tanggal tidak sesuai dengan status awal yang dipilih.",
+        });
+      }
+    }
+  },
+);
+
+export const alumniRegistrationSchema = z.object({
+  identity: alumniSchema,
+  placement: initialPlacementSchema,
+});
+
 export type AlumniInput = z.infer<typeof alumniSchema>;
 export type PlacementInput = z.infer<typeof placementSchema>;
+export type AlumniRegistrationInput = z.infer<
+  typeof alumniRegistrationSchema
+>;
 export type AlumniRecord = AlumniInput & { id: string; school_id: string };
 export type PlacementRecord = Omit<
   PlacementInput,
@@ -146,3 +205,6 @@ export type PlacementRecord = Omit<
   work_sector: string | null;
 };
 export type MutationResult = { success: boolean; message: string; id?: string };
+export type RegistrationResult = MutationResult & {
+  identitySaved?: boolean;
+};
