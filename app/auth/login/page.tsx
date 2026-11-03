@@ -1,69 +1,79 @@
-import { LoginForm } from "@/components/login-form";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { LoginForm } from "@/components/login-form";
+import { LoadingIndicator } from "@/components/ui/loading";
+import { createClient } from "@/lib/supabase/server";
+import { getSchoolActivationContext } from "@/lib/auth/school-activation";
+import type { LoginMode } from "@/lib/auth/login-schema";
 
-async function LoginContent() {
+type LoginPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+async function LoginContent({ searchParams }: LoginPageProps) {
+  const params = searchParams ? await searchParams : undefined;
+  const requestedMode = Array.isArray(params?.mode)
+    ? params.mode[0]
+    : params?.mode;
+  const initialMode: LoginMode =
+    requestedMode === "dinas" ? "dinas" : "school";
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
 
   if (typeof data?.claims?.sub === "string") {
-    redirect("/dashboard");
+    const verified = await supabase.auth.getUser();
+    if (!verified.error && verified.data.user?.id === data.claims.sub) {
+      const profile = await supabase.from("profiles").select("role").eq("user_id", data.claims.sub).maybeSingle();
+      if (profile.error) throw new Error("Profile unavailable");
+      const activation = !profile.data || profile.data.role === "petugas_sekolah"
+        ? await getSchoolActivationContext(data.claims.sub) : null;
+      redirect(activation ? "/auth/update-password" : "/dashboard");
+    }
   }
 
-  return <LoginScreen />;
+  return <LoginScreen initialMode={initialMode} />;
 }
 
-function LoginScreen({ isCheckingSession = false }) {
+function LoginScreen({
+  isCheckingSession = false,
+  initialMode = "school",
+}: {
+  isCheckingSession?: boolean;
+  initialMode?: LoginMode;
+}) {
   return (
-    <main className="min-h-svh bg-background lg:grid lg:grid-cols-[minmax(20rem,0.9fr)_minmax(28rem,1.1fr)]">
-      <section className="bg-primary px-6 py-7 text-primary-foreground sm:px-10 lg:flex lg:min-h-svh lg:flex-col lg:justify-between lg:px-14 lg:py-12">
-        <div>
-          <p className="text-lg font-semibold tracking-tight">
-            Alumni Mendunia SMK
-          </p>
-          <div className="mt-5 h-1 w-16 rounded-sm bg-accent" aria-hidden="true" />
-        </div>
+    <main className="min-h-svh w-full bg-background lg:grid lg:h-svh lg:grid-cols-2 lg:overflow-hidden">
+      <section className="hidden bg-primary px-10 py-12 text-primary-foreground lg:flex lg:min-h-svh lg:flex-col lg:justify-between xl:px-16">
 
-        <div className="mt-16 hidden max-w-md lg:block">
-          <h2 className="text-3xl font-semibold leading-tight">
+        <div className="relative z-10 my-auto max-w-xl">
+          <h1 className="type-auth-hero">
             Pendataan alumni yang bekerja di luar negeri.
-          </h2>
-          <p className="mt-5 text-base leading-7 text-slate-200">
+          </h1>
+          <p className="mt-7 max-w-lg text-lg leading-7 text-slate-300">
             Akses terbatas untuk petugas sekolah dan pengguna Dinas Pendidikan
             Provinsi DKI Jakarta.
           </p>
         </div>
 
-        <p className="mt-10 text-xs leading-5 text-slate-300 lg:mt-16">
-          Dinas Pendidikan Provinsi DKI Jakarta
+        <p className="relative z-10 text-xs font-medium leading-5 text-slate-400">
+          © 2026 Dinas Pendidikan Provinsi DKI Jakarta. All Rights Reserved.
         </p>
       </section>
 
-      <section className="flex items-center justify-center px-5 py-10 sm:px-10 lg:px-14">
-        <div className="w-full max-w-md">
+      <section className="flex min-h-svh min-w-0 items-start justify-center overflow-y-auto px-4 py-8 sm:px-8 lg:min-h-0">
+        <div className="my-auto w-full min-w-0 max-w-md rounded-xl border bg-card p-6 sm:p-8">
           {isCheckingSession ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="rounded-lg border bg-white p-6 sm:p-8"
-            >
-              <div
-                className="h-1 w-12 rounded-sm bg-accent"
-                aria-hidden="true"
-              />
-              <p className="mt-5 font-medium text-primary">Memeriksa sesi</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            <div role="status" aria-live="polite">
+              <LoadingIndicator className="mb-5 text-primary" />
+              <h1 className="type-page-title text-slate-900">
+                Memeriksa sesi
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
                 Menyiapkan akses masuk Anda.
               </p>
             </div>
           ) : (
-            <>
-              <LoginForm />
-              <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
-                Pembuatan akun dilakukan oleh Admin Dinas.
-              </p>
-            </>
+            <LoginForm initialMode={initialMode} />
           )}
         </div>
       </section>
@@ -71,10 +81,10 @@ function LoginScreen({ isCheckingSession = false }) {
   );
 }
 
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: LoginPageProps = {}) {
   return (
     <Suspense fallback={<LoginScreen isCheckingSession />}>
-      <LoginContent />
+      <LoginContent searchParams={searchParams} />
     </Suspense>
   );
 }
