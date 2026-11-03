@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useId, useState } from "react";
+import { forwardRef, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -58,26 +58,31 @@ export const CountryCombobox = forwardRef<
 ) {
   const listId = useId();
   const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
   const [search, setSearch] = useState("");
   const [internalValue, setInternalValue] = useState(defaultValue);
   const selectedValue = value === undefined ? internalValue : value;
   const selected = getCountryOption(selectedValue);
   const visibleOptions = searchCountryOptions(search);
 
+  function changeOpen(nextOpen: boolean) {
+    const wasOpen = openRef.current;
+    openRef.current = nextOpen;
+    setOpen(nextOpen);
+    if (!nextOpen) setSearch("");
+    if (wasOpen && !nextOpen) onBlur?.();
+  }
+
   function select(nextValue: string) {
     if (value === undefined) setInternalValue(nextValue);
     onValueChange?.(nextValue);
-    setSearch("");
-    setOpen(false);
+    changeOpen(false);
   }
 
   return (
     <Popover
       open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
-      }}
+      onOpenChange={changeOpen}
     >
       {name && <input type="hidden" name={name} value={selected?.label ?? ""} />}
       <PopoverTrigger asChild>
@@ -93,9 +98,11 @@ export const CountryCombobox = forwardRef<
           aria-invalid={invalid}
           aria-required={required}
           aria-describedby={describedBy}
-          onBlur={onBlur}
+          onBlur={() => {
+            if (!openRef.current) onBlur?.();
+          }}
           disabled={disabled}
-          className="min-h-11 w-full min-w-0 justify-between bg-white px-3 font-normal shadow-sm"
+          className="min-h-11 w-full min-w-0 justify-between bg-white px-3 font-normal"
         >
           <span
             className={cn(
