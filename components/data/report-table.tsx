@@ -33,7 +33,7 @@ export function ReportTable({
       role="region"
       aria-label="Rincian laporan, geser untuk melihat seluruh kolom"
       tabIndex={0}
-      className="overflow-x-auto rounded-lg border bg-white"
+      className="min-w-0 overflow-x-auto rounded-xl border bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
     >
       <table className="w-full min-w-[1100px] text-left text-sm">
         <caption className="sr-only">
