@@ -1,3 +1,4 @@
+import { alumniReturnPath, alumniFormPath } from "@/lib/alumni/navigation";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getAlumniAccess } from "@/lib/alumni/access";
@@ -11,7 +12,7 @@ import {
   AlumniAccessDenied,
   PlacementBadge,
 } from "@/components/alumni/page-frame";
-import { AlumniForm } from "@/components/alumni/alumni-form";
+import { AlumniEditor } from "@/components/alumni/alumni-form";
 import { PlacementForm } from "@/components/alumni/placement-form";
 import { Button } from "@/components/ui/button";
 import { StatusAction } from "@/components/alumni/status-action";
@@ -45,15 +46,19 @@ function formatDate(value: string | null) {
 
 export default async function AlumniDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const access = await getAlumniAccess();
   if (!access.allowed) {
     if (access.reason === "session") redirect("/auth/login");
+    if (access.reason === "password_change") redirect("/auth/update-password");
     return <AlumniAccessDenied />;
   }
   const { id } = await params;
+  const returnTo = alumniReturnPath((await searchParams).returnTo);
   if (!idSchema.safeParse(id).success) notFound();
   let query = access.supabase
     .from("alumni")
@@ -96,10 +101,19 @@ export default async function AlumniDetailPage({
   );
   return (
     <AlumniPageFrame canWrite={access.canWrite}>
-      <Button asChild variant="outline" className="mb-5 min-h-11">
-        <Link href="/dashboard/alumni">Kembali ke daftar</Link>
-      </Button>
-      <h1 className="break-words text-2xl font-semibold text-primary">
+      <div className="mb-5 flex flex-wrap gap-3">
+        <Button asChild variant="outline" className="min-h-11">
+          <Link href={returnTo}>Kembali ke daftar</Link>
+        </Button>
+        {access.canWrite && (
+          <Button asChild className="min-h-11">
+            <Link href={alumniFormPath("/dashboard/alumni/new", returnTo)}>
+              Tambah alumni lain
+            </Link>
+          </Button>
+        )}
+      </div>
+      <h1 className="type-page-title break-words text-primary">
         {alumni.full_name}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
@@ -107,12 +121,9 @@ export default async function AlumniDetailPage({
       </p>
       <section
         aria-labelledby="identity-heading"
-        className="mt-6 rounded-lg border bg-white p-5 sm:p-6"
+        className="mt-6 rounded-xl border bg-card p-5 sm:p-6"
       >
-        <h2
-          id="identity-heading"
-          className="text-lg font-semibold text-primary"
-        >
+        <h2 id="identity-heading" className="type-section-title text-primary">
           Identitas alumni
         </h2>
         <dl className="mt-5 grid gap-5 sm:grid-cols-3">
@@ -125,24 +136,14 @@ export default async function AlumniDetailPage({
           <DetailItem label="Jurusan">{alumni.major}</DetailItem>
         </dl>
         {access.canWrite && (
-          <details className="mt-6 border-t pt-4">
-            <summary className="flex min-h-11 cursor-pointer items-center rounded text-sm font-medium text-accent underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
-              Edit identitas alumni
-            </summary>
-            <div className="mt-4 max-w-2xl">
-              <AlumniForm key={alumni.id} alumni={alumni} />
-            </div>
-          </details>
+          <AlumniEditor key={alumni.id} alumni={alumni} returnTo={returnTo} />
         )}
       </section>
       <section
         aria-labelledby="placement-heading"
-        className="mt-6 rounded-lg border bg-white p-5 sm:p-6"
+        className="mt-6 rounded-xl border bg-card p-5 sm:p-6"
       >
-        <h2
-          id="placement-heading"
-          className="text-lg font-semibold text-primary"
-        >
+        <h2 id="placement-heading" className="type-section-title text-primary">
           Penempatan saat ini
         </h2>
         {placement ? (
@@ -193,7 +194,7 @@ export default async function AlumniDetailPage({
             </p>
             {access.canWrite && !hasPlacement && (
               <div className="mt-6 max-w-2xl border-t pt-6">
-                <PlacementForm alumniId={alumni.id} />
+                <PlacementForm alumniId={alumni.id} returnTo={returnTo} />
               </div>
             )}
           </>
@@ -201,7 +202,7 @@ export default async function AlumniDetailPage({
       </section>
       <section
         aria-labelledby="history-heading"
-        className="mt-6 rounded-lg border bg-white p-5 sm:p-6"
+        className="mt-6 rounded-xl border bg-card p-5 sm:p-6"
       >
         {access.canWrite &&
           placement &&
@@ -218,10 +219,11 @@ export default async function AlumniDetailPage({
                 key={placement.id}
                 alumniId={alumni.id}
                 expectedCurrentId={placement.id}
+                returnTo={returnTo}
               />
             </details>
           )}
-        <h2 id="history-heading" className="text-lg font-semibold text-primary">
+        <h2 id="history-heading" className="type-section-title text-primary">
           Riwayat Status
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -240,7 +242,7 @@ export default async function AlumniDetailPage({
             >
               <h3
                 id={`history-${item.id}`}
-                className="break-words text-base font-semibold text-primary"
+                className="type-card-title break-words text-primary"
               >
                 {formatCountryName(item.destination_country)} ·{" "}
                 {item.company_name || "Perusahaan belum dicatat"}
