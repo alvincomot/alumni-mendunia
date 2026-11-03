@@ -37,7 +37,7 @@ export default async function ReportsPage({
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-primary">
+          <h1 className="type-page-title text-primary">
             Laporan Alumni
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -76,7 +76,7 @@ export default async function ReportsPage({
           />
         ))}
       </div>
-      <h2 className="mb-4 text-lg font-semibold text-primary">
+      <h2 className="type-section-title mb-4 text-primary">
         Rincian alumni
       </h2>
       {rows.length ? (
@@ -85,7 +85,7 @@ export default async function ReportsPage({
           rows={rows.slice((page - 1) * 20, page * 20).map(reportValues)}
         />
       ) : (
-        <p className="rounded-lg border bg-white p-6">
+        <p className="rounded-xl border bg-card p-6">
           Tidak ada data sesuai filter. Ekspor tetap berisi judul kolom.
         </p>
       )}
