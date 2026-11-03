@@ -1,10 +1,16 @@
-export default function SchoolsLoading() {
+import { TableSkeleton } from "@/components/ui/loading";
+import { requireAccess } from "@/lib/auth/access";
+
+export default async function SchoolsLoading() {
+  const access = await requireAccess(["admin_dinas", "viewer_dinas"]);
   return (
-    <main className="mx-auto max-w-6xl px-5 py-10" role="status">
-      <h1 className="text-2xl font-semibold text-primary">Memuat sekolah</h1>
-      <p className="mt-3 text-sm">
-        Sedang memeriksa akses dan mengambil daftar sekolah.
-      </p>
-    </main>
+    <TableSkeleton
+      label="Memuat daftar sekolah"
+      columns={access.role === "admin_dinas" ? 7 : 4}
+      rows={6}
+      filterFields={2}
+      action={access.role === "admin_dinas"}
+      minWidth={access.role === "admin_dinas" ? 960 : 680}
+    />
   );
 }
