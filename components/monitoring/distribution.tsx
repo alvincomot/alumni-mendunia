@@ -6,15 +6,15 @@ export function DistributionTable({
   rows: { id: string; name: string; count: number }[];
 }) {
   return (
-    <section className="min-w-0 rounded-lg border bg-white p-5">
-      <h2 className="text-lg font-semibold text-primary">{title}</h2>
+    <section className="min-w-0 rounded-xl border bg-card p-5">
+      <h2 className="type-section-title text-primary">{title}</h2>
       {!rows.length ? (
         <p className="mt-4 text-sm text-muted-foreground">
           Belum ada data sesuai filter.
         </p>
       ) : (
         <div
-          className="mt-4 max-h-80 overflow-y-auto"
+          className="mt-4 max-h-80 overflow-y-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           tabIndex={0}
           role="region"
           aria-label={title}
