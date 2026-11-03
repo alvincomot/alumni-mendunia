@@ -3,8 +3,9 @@ import Link from "next/link";
 
 export default function Page() {
   return (
-    <main className="mx-auto max-w-lg px-5 py-16">
-      <h1 className="text-2xl font-semibold text-primary">
+    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-8 sm:p-8">
+      <div className="w-full max-w-md rounded-xl border bg-card p-6">
+      <h1 className="type-page-title text-primary">
         Akses tidak diizinkan
       </h1>
       <p className="my-5 leading-7">
@@ -20,6 +21,7 @@ export default function Page() {
           Kembali ke dashboard
         </Link>
         <LogoutButton />
+      </div>
       </div>
     </main>
   );
