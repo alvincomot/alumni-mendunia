@@ -15,7 +15,7 @@ export function AlumniPageFrame({
 export function AlumniAccessDenied() {
   return (
     <main className="mx-auto max-w-xl px-5 py-12">
-      <h1 className="text-2xl font-semibold text-primary">
+      <h1 className="type-page-title text-primary">
         Akses tidak diizinkan
       </h1>
       <p className="my-5 text-sm leading-6">
@@ -43,7 +43,7 @@ const statusStyles: Record<PlacementStatus, string> = {
 export function PlacementBadge({ status }: { status: PlacementStatus }) {
   return (
     <span
-      className={`inline-block rounded px-2 py-1 text-xs font-medium ${statusStyles[status]}`}
+      className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[status]}`}
     >
       {statusLabels[status]}
     </span>
