@@ -35,6 +35,7 @@ export default async function ReportsPage({
     Math.max(1, requested),
     Math.max(1, Math.ceil(rows.length / 20)),
   );
+  const exportUrl = `/dashboard/reports/export?${new URLSearchParams(filters)}`;
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -48,9 +49,7 @@ export default async function ReportsPage({
           </p>
         </div>
         <Button asChild className="min-h-11">
-          <a href={`/dashboard/reports/export?${new URLSearchParams(filters)}`}>
-            Unduh CSV
-          </a>
+          <a href={exportUrl}>Unduh CSV</a>
         </Button>
       </div>
       <MonitoringFilterForm
