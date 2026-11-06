@@ -37,6 +37,18 @@ export const statusChangeSchema = z
       ctx.addIssue({ code: "custom", path: [field], message });
     if (!canTransition(value.expected_status, value.new_status))
       issue("new_status", "Perubahan status tidak sesuai alur yang diizinkan.");
+    if (
+      value.expected_status === "persiapan_berangkat" &&
+      value.new_status === "aktif_bekerja" &&
+      !value.actual_departure
+    )
+      issue("actual_departure", "Tanggal keberangkatan wajib diisi.");
+    if (
+      value.expected_status === "aktif_bekerja" &&
+      value.new_status === "selesai_kontrak" &&
+      !value.contract_end_date
+    )
+      issue("contract_end_date", "Tanggal selesai kontrak wajib diisi.");
     if (value.new_status !== "aktif_bekerja" && value.actual_departure)
       issue(
         "actual_departure",
