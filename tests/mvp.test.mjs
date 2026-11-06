@@ -89,6 +89,40 @@ const row = {
   ],
 };
 
+function parseCsv(csv, delimiter) {
+  const text = csv.startsWith("\uFEFF") ? csv.slice(1) : csv;
+  const rows = [];
+  let record = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') {
+        cell += '"';
+        index++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && character === delimiter) {
+      record.push(cell);
+      cell = "";
+    } else if (!quoted && character === "\r" && text[index + 1] === "\n") {
+      record.push(cell);
+      rows.push(record);
+      record = [];
+      cell = "";
+      index++;
+    } else {
+      cell += character;
+    }
+  }
+  assert.equal(quoted, false, "CSV quotes must be balanced");
+  assert.equal(record.length, 0, "CSV must end with CRLF");
+  assert.equal(cell, "", "CSV must not contain trailing data after CRLF");
+  return rows;
+}
+
 function monitoringAccess(firstError) {
   const selections = [];
   return {
@@ -312,7 +346,57 @@ test("every report dimension filters the same data used in exports", () => {
   );
 });
 
-test("CSV quotes commas/newlines/quotes, emits UTF-8 BOM and neutralizes formula prefixes", () => {
+test("report columns keep mappings aligned and format dates unambiguously", () => {
+  assert.deepEqual(
+    model.reportColumns.map((column) => column.order),
+    Array.from({ length: model.reportHeaders.length }, (_, index) => index + 1),
+  );
+  assert.deepEqual(
+    model.reportColumns.map((column) => column.header),
+    model.reportHeaders,
+  );
+  const complete = {
+    ...row,
+    full_name: "Alumni Áyu",
+    major: "Kuliner; Patiseri",
+    schools: { name: "SMK Bhinneka, Jakarta" },
+    placements: [
+      {
+        ...row.placements[0],
+        placement_provider_name: "LPK Nusantara; P3MI",
+        work_sector: "Perhotelan, Restoran",
+        company_name: 'Perusahaan "Fiktif"',
+        planned_departure: "2026-01-02",
+        actual_departure: "2026-02-03",
+        employment_start: "2026-02-04",
+        contract_end_date: "2027-03-05",
+      },
+    ],
+  };
+  const values = model.reportValues(complete);
+  assert.equal(values.length, model.reportHeaders.length);
+  assert.deepEqual(values.slice(0, 4), [
+    "Alumni Áyu",
+    "SMK Bhinneka, Jakarta",
+    "2020",
+    "Kuliner; Patiseri",
+  ]);
+  assert.deepEqual(values.slice(7, 10), [
+    "LPK Nusantara; P3MI",
+    "Perhotelan, Restoran",
+    'Perusahaan "Fiktif"',
+  ]);
+  assert.deepEqual(values.slice(10), [
+    "02/01/2026",
+    "03/02/2026",
+    "04/02/2026",
+    "05/03/2027",
+  ]);
+  assert.equal(model.formatReportDate("2026-02-30"), "");
+  assert.equal(model.reportValues({ ...row, placements: [] }).length, values.length);
+});
+
+test("CSV supports Excel Indonesia without shifting cells", () => {
   for (const value of [
     "=1+1",
     "+cmd",
@@ -325,11 +409,35 @@ test("CSV quotes commas/newlines/quotes, emits UTF-8 BOM and neutralizes formula
     "\uFEFF=1",
   ])
     assert.ok(model.csvCell(value).startsWith("\"'"));
-  assert.equal(model.csvCell('Nama, "Fiktif"\nDua'), '"Nama, ""Fiktif""\nDua"');
-  const csv = model.exportCsv([row]);
+  assert.equal(model.csvCell(null), '""');
+  const special = {
+    ...row,
+    full_name: 'Alumni, "Fiktif";\nBaru',
+    major: "Teknik; Komputer, Jaringan",
+    schools: { name: "SMK Bhakti Indonesia" },
+  };
+  const csv = model.exportCsv([special, { ...row, placements: [] }]);
   assert.ok(csv.startsWith('\uFEFF"Nama alumni"'));
   assert.ok(csv.endsWith("\r\n"));
+  const parsed = parseCsv(csv, ";");
+  assert.equal(parsed.length, 3);
+  assert.ok(
+    parsed.every((record) => record.length === model.reportHeaders.length),
+  );
+  assert.equal(parsed[1][0], special.full_name);
+  assert.equal(parsed[1][1], special.schools.name);
+  assert.equal(parsed[1][3], special.major);
+  assert.equal(parsed[2][4], "");
+  assert.equal(parsed[2][7], "");
+  assert.throws(
+    () => model.serializeCsv(["A", "B"], [["tidak lengkap"]], ";"),
+    /column count/,
+  );
   assert.equal(model.exportCsv([]).split("\r\n").length, 2);
+  assert.equal(
+    model.reportFileName(new Date("2026-11-05T18:00:00.000Z")),
+    "laporan-alumni-2026-11-06.csv",
+  );
 });
 
 test("reader traverses server row limits and rejects truncation/errors instead of wrong totals", async () => {
@@ -712,13 +820,18 @@ test("export endpoint denies staff and missing/inactive profiles before loading 
   }
 });
 
-test("Dinas export filters authorized results and disables caching", async () => {
+test("Dinas export filters every authorized row as Excel-compatible CSV", async () => {
   for (const role of ["admin_dinas", "viewer_dinas"]) {
+    const exportedRows = Array.from({ length: 25 }, (_, index) => ({
+      ...row,
+      id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,
+      full_name: `Alumni Fiktif ${String(index + 1).padStart(2, "0")}`,
+    }));
     const route = loader({
       "@/lib/alumni/access": {
         getAlumniAccess: async () => ({ allowed: true, role }),
       },
-      "@/lib/monitoring/data": { loadMonitoring: async () => [row] },
+      "@/lib/monitoring/data": { loadMonitoring: async () => exportedRows },
     })("app/dashboard/reports/export/route.ts");
     const result = await route.GET(
       new Request(
@@ -727,7 +840,13 @@ test("Dinas export filters authorized results and disables caching", async () =>
     );
     assert.equal(result.status, 200);
     assert.match(result.headers.get("cache-control"), /no-store/);
-    assert.match(await result.text(), /Alumni Fiktif/);
+    assert.match(
+      result.headers.get("content-disposition"),
+      /filename="laporan-alumni-\d{4}-\d{2}-\d{2}\.csv"/,
+    );
+    const excelRows = parseCsv(await result.text(), ";");
+    assert.equal(excelRows.length, exportedRows.length + 1);
+    assert.equal(new Set(excelRows.slice(1).map((record) => record[0])).size, 25);
     const empty = await route.GET(
       new Request(
         "https://prototype.example/dashboard/reports/export?country=not-matching",
