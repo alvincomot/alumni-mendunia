@@ -59,6 +59,8 @@ export default async function AlumniPage({
         path="/dashboard/alumni"
         showSchools={!access.canWrite}
         showSearch
+        showSort={false}
+        inlineActions
       />
       {rows.length === 0 ? (
         <section className="rounded-xl border bg-card p-6">

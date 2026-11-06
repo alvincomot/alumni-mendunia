@@ -39,8 +39,8 @@ function IconDetailItem({
 }) {
   return (
     <div className={`flex min-w-0 items-start gap-3 ${divided ? "md:border-l md:pl-5" : ""}`}>
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary/70">
-        <DashboardIcon name={icon} className="size-[18px]" />
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary/70">
+        <DashboardIcon name={icon} className="size-[22px]" />
       </span>
       <div className="min-w-0">
         <dt className="type-meta text-muted-foreground">{label}</dt>

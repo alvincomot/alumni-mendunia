@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -67,14 +68,17 @@ export function DashboardSidebar({ role }: { role: ApplicationRole }) {
         <Link
           href="/dashboard"
           onClick={() => setOpen(false)}
-          className="mb-6 flex min-h-12 items-center gap-3 rounded-lg px-2 pr-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:pr-2"
+          aria-label="Buka Dashboard"
+          className="mb-6 flex min-h-12 justify-center rounded-lg px-2 pr-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:pr-2"
         >
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs font-bold text-primary">
-            AM
-          </span>
-          <span className="type-brand min-w-0 text-primary">
-            Alumni Mendunia
-          </span>
+          <Image
+            src="/images/smk-bisa-hebat.webp"
+            alt="SMK Bisa Hebat"
+            width={400}
+            height={262}
+            priority
+            className="h-auto w-full max-w-[160px]"
+          />
         </Link>
 
         <nav className="flex flex-1 flex-col gap-1">

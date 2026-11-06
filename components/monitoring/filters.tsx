@@ -9,6 +9,8 @@ export function MonitoringFilterForm({
   showSchools,
   showSector = false,
   showSearch = false,
+  showSort = showSearch,
+  inlineActions = false,
 }: {
   rows: MonitoringRow[];
   values: MonitoringFilters;
@@ -16,6 +18,8 @@ export function MonitoringFilterForm({
   showSchools: boolean;
   showSector?: boolean;
   showSearch?: boolean;
+  showSort?: boolean;
+  inlineActions?: boolean;
 }) {
   const distinct = (values: (string | undefined | null)[]) =>
     [...new Set(values.filter((value): value is string => !!value))]
@@ -72,7 +76,7 @@ export function MonitoringFilterForm({
           },
         ]
       : []),
-    ...(showSearch
+    ...(showSort
       ? [
           {
             name: "sort",
@@ -87,5 +91,12 @@ export function MonitoringFilterForm({
         ]
       : []),
   ];
-  return <Filters path={path} fields={fields} values={values} />;
+  return (
+    <Filters
+      path={path}
+      fields={fields}
+      values={values}
+      inlineActions={inlineActions}
+    />
+  );
 }

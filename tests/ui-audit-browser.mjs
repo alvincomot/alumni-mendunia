@@ -42,6 +42,7 @@ const mocks = {
   "server-only": "",
   "next/navigation": `export const usePathname=()=>window.fixture.path; export const useRouter=()=>({push(u){window.fixture.destination=u},replace(u){window.fixture.destination=u},refresh(){window.fixture.refreshed=true}}); export function redirect(u){throw Error('Unexpected redirect '+u)} export function notFound(){throw Error('Unexpected not found')}`,
   "next/link": `import React from 'react';export default function Link(p){return <a {...p}/>}`,
+  "next/image": `import React from 'react';export default function Image({priority,...props}){return <img {...props}/>}`,
   "@/lib/auth/access": `export {access as requireAccess} from 'fixture:data'`,
   "@/lib/schools/access": `export {access as getSchoolAccess} from 'fixture:data'`,
   "@/lib/alumni/access": `export {access as getAlumniAccess} from 'fixture:data'`,
@@ -171,6 +172,11 @@ const server = http.createServer((request, response) => {
         "\n:root{--font-inter:Inter,Arial,sans-serif;--font-plus-jakarta:'Plus Jakarta Sans',Arial,sans-serif}\n" +
         css.css,
     );
+  } else if (url.pathname === "/images/smk-bisa-hebat.webp") {
+    response.setHeader("Content-Type", "image/webp");
+    response.end(
+      fs.readFileSync(path.join(root, "public/images/smk-bisa-hebat.webp")),
+    );
   } else if (/^\/media\/[A-Za-z0-9_.-]+\.woff2$/.test(url.pathname)) {
     response.setHeader("Content-Type", "font/woff2");
     response.end(
@@ -233,6 +239,28 @@ try {
       fullPage: true,
     });
   }
+  async function checkSidebarLogo(scope, name) {
+    const logo = scope.locator(
+      'a[aria-label="Buka Dashboard"] img[alt="SMK Bisa Hebat"]',
+    );
+    await logo.waitFor();
+    const metrics = await logo.evaluate(async (image) => {
+      if (!image.complete) {
+        await new Promise((resolve) =>
+          image.addEventListener("load", resolve, { once: true }),
+        );
+      }
+      const bounds = image.getBoundingClientRect();
+      return {
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        renderedWidth: bounds.width,
+      };
+    });
+    assert.equal(metrics.naturalWidth, 400, name + " logo source width");
+    assert.equal(metrics.naturalHeight, 262, name + " logo source height");
+    assert.ok(metrics.renderedWidth <= 200.5, name + " logo fits sidebar");
+  }
   for (const width of [390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const view of [
@@ -248,6 +276,15 @@ try {
       await page.goto(`${base}/?view=${view}`);
       await page.locator("#main-content h1").waitFor();
       await check(`${view}-${width}`);
+      if (view === "reports") {
+        await page.getByRole("link", { name: "Unduh CSV", exact: true }).waitFor();
+        assert.equal(
+          await page
+            .getByRole("link", { name: "Unduh CSV standar", exact: true })
+            .count(),
+          0,
+        );
+      }
       if (view === "dashboard") {
         if (width < 1024) {
           const trigger = page.getByRole("button", { name: "Buka navigasi" });
@@ -255,6 +292,7 @@ try {
           await page.keyboard.press("Enter");
           const menu = page.getByRole("dialog", { name: "Navigasi utama" });
           await menu.waitFor();
+          await checkSidebarLogo(menu, `mobile-${width}`);
           assert.equal(
             await menu
               .locator('a[aria-current="page"]')
@@ -282,6 +320,7 @@ try {
             true,
           );
         } else {
+          await checkSidebarLogo(page.locator("aside"), `desktop-${width}`);
           assert.equal(
             await page
               .locator('aside a[aria-current="page"]')

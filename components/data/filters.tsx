@@ -21,10 +21,12 @@ function FiltersContent({
   path,
   values,
   fields,
+  inlineActions = false,
 }: {
   path: string;
   values: Record<string, string>;
   fields: FilterField[];
+  inlineActions?: boolean;
 }) {
   const router = useRouter();
   const [resetSession, setResetSession] = useState(0);
@@ -51,7 +53,13 @@ function FiltersContent({
       ref={formRef}
       onSubmit={handleSubmit}
       aria-busy={isPending}
-      className="my-6 grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      className={`my-6 grid items-end gap-4 sm:grid-cols-2 ${
+        inlineActions
+          ? fields.length === 5
+            ? "xl:grid-cols-6"
+            : "xl:grid-cols-5"
+          : "xl:grid-cols-4"
+      }`}
     >
       {fields.map((field) =>
         field.country ? (

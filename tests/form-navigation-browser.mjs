@@ -512,6 +512,24 @@ try {
     }
     await dismiss();
     await list();
+    assert.equal(
+      await page.getByText("Urutkan", { exact: true }).count(),
+      0,
+      "alumni list omits the sorting control",
+    );
+    const searchBounds = await input("Cari nama alumni").boundingBox();
+    const applyBounds = await page
+      .getByRole("button", { name: "Terapkan", exact: true })
+      .boundingBox();
+    assert.ok(searchBounds && applyBounds);
+    assert.ok(
+      Math.abs(
+        searchBounds.y +
+          searchBounds.height -
+          (applyBounds.y + applyBounds.height),
+      ) <= 1,
+      "filter controls and actions share one desktop row",
+    );
     await input("Cari nama alumni").fill("Alumni");
     await main
       .getByRole("combobox", { name: /^Tahun kelulusan/ })

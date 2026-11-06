@@ -162,55 +162,179 @@ export function distribution(
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "id"));
 }
 
-export const reportHeaders = [
-  "Nama alumni",
-  "Sekolah",
-  "Tahun kelulusan",
-  "Jurusan",
-  "Negara tujuan",
-  "Status penempatan",
-  "Status perolehan penempatan",
-  "LPK / Sending Organization / P3MI (Penyalur)",
-  "Sektor pekerjaan",
-  "Perusahaan/pemberi kerja (data historis)",
-  "Rencana berangkat",
-  "Keberangkatan aktual",
-  "Mulai bekerja",
-  "Selesai kontrak",
-];
-export function reportValues(row: MonitoringRow): string[] {
-  const p = row.placements[0];
-  return [
-    row.full_name,
-    row.schools?.name ?? "Sekolah tidak tersedia",
-    String(row.graduation_year),
-    row.major,
-    p?.destination_country ? formatCountryName(p.destination_country) : "",
-    p ? statusLabels[p.status] : "Belum dicatat",
-    placementStateLabel(p),
-    p?.placement_provider_name ?? "",
-    p?.work_sector ?? "",
-    p?.company_name ?? "",
-    p?.planned_departure ?? "",
-    p?.actual_departure ?? "",
-    p?.employment_start ?? "",
-    p?.contract_end_date ?? "",
-  ];
+type CurrentPlacement = MonitoringRow["placements"][number] | undefined;
+
+export type ReportColumnDefinition = {
+  order: number;
+  source: string;
+  header: string;
+  format: (row: MonitoringRow, placement: CurrentPlacement) => string;
+};
+
+export function formatReportDate(value: string | null | undefined) {
+  if (!value) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/u.exec(value);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  )
+    return "";
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
-export function csvCell(value: string) {
+const reportColumnDefinitions = [
+  {
+    order: 1,
+    source: "full_name",
+    header: "Nama alumni",
+    format: (row: MonitoringRow) => row.full_name,
+  },
+  {
+    order: 2,
+    source: "schools.name",
+    header: "Sekolah",
+    format: (row: MonitoringRow) =>
+      row.schools?.name ?? "Sekolah tidak tersedia",
+  },
+  {
+    order: 3,
+    source: "graduation_year",
+    header: "Tahun kelulusan",
+    format: (row: MonitoringRow) => String(row.graduation_year),
+  },
+  {
+    order: 4,
+    source: "major",
+    header: "Jurusan",
+    format: (row: MonitoringRow) => row.major,
+  },
+  {
+    order: 5,
+    source: "placements.destination_country",
+    header: "Negara tujuan",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      placement?.destination_country
+        ? formatCountryName(placement.destination_country)
+        : "",
+  },
+  {
+    order: 6,
+    source: "placements.status",
+    header: "Status penempatan",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      placement ? statusLabels[placement.status] : "Belum dicatat",
+  },
+  {
+    order: 7,
+    source: "placements.placement_secured",
+    header: "Status perolehan penempatan",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      placementStateLabel(placement),
+  },
+  {
+    order: 8,
+    source: "placements.placement_provider_name",
+    header: "LPK / Sending Organization / P3MI (Penyalur)",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      placement?.placement_provider_name ?? "",
+  },
+  {
+    order: 9,
+    source: "placements.work_sector",
+    header: "Sektor pekerjaan",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      placement?.work_sector ?? "",
+  },
+  {
+    order: 10,
+    source: "placements.company_name",
+    header: "Perusahaan/pemberi kerja (data historis)",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      placement?.company_name ?? "",
+  },
+  {
+    order: 11,
+    source: "placements.planned_departure",
+    header: "Rencana berangkat",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      formatReportDate(placement?.planned_departure),
+  },
+  {
+    order: 12,
+    source: "placements.actual_departure",
+    header: "Keberangkatan aktual",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      formatReportDate(placement?.actual_departure),
+  },
+  {
+    order: 13,
+    source: "placements.employment_start",
+    header: "Mulai bekerja",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      formatReportDate(placement?.employment_start),
+  },
+  {
+    order: 14,
+    source: "placements.contract_end_date",
+    header: "Selesai kontrak",
+    format: (_row: MonitoringRow, placement: CurrentPlacement) =>
+      formatReportDate(placement?.contract_end_date),
+  },
+] satisfies ReportColumnDefinition[];
+
+export const reportColumns = [...reportColumnDefinitions].sort(
+  (left, right) => left.order - right.order,
+);
+export const reportHeaders = reportColumns.map((column) => column.header);
+
+export function reportValues(row: MonitoringRow): string[] {
+  const placement = row.placements[0];
+  return reportColumns.map((column) => column.format(row, placement));
+}
+
+type CsvValue = string | number | null | undefined;
+
+export function csvCell(value: CsvValue) {
+  const text = value == null ? "" : String(value);
   const safe =
-    /^[\s\uFEFF]*[=+\-@]/u.test(value) || /^[\t\r\n]/u.test(value)
-      ? `'${value}`
-      : value;
+    /^[\s\uFEFF]*[=+\-@]/u.test(text) || /^[\t\r\n]/u.test(text)
+      ? `'${text}`
+      : text;
   return `"${safe.replaceAll('"', '""')}"`;
 }
+
+export function serializeCsv(
+  headers: readonly CsvValue[],
+  rows: readonly (readonly CsvValue[])[],
+  delimiter: ";" | ",",
+) {
+  const columnCount = headers.length;
+  const serializedRows = [headers, ...rows].map((row) => {
+    if (row.length !== columnCount)
+      throw new Error("CSV row does not match the report column count");
+    return row.map(csvCell).join(delimiter);
+  });
+  return `\uFEFF${serializedRows.join("\r\n")}\r\n`;
+}
+
 export function exportCsv(rows: MonitoringRow[]) {
-  return (
-    "\uFEFF" +
-    [reportHeaders, ...rows.map(reportValues)]
-      .map((row) => row.map(csvCell).join(","))
-      .join("\r\n") +
-    "\r\n"
-  );
+  return serializeCsv(reportHeaders, rows.map(reportValues), ";");
+}
+
+export function reportFileName(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `laporan-alumni-${value("year")}-${value("month")}-${value("day")}.csv`;
 }
