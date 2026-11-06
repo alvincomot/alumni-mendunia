@@ -29,12 +29,20 @@ export async function changePlacementStatus(
     const access = await getAlumniAccess();
     if (!access.allowed || !access.canWrite || !access.schoolId) return denied;
     const parsed = statusChangeSchema.safeParse(input);
-    if (!parsed.success)
+    if (!parsed.success) {
+      const requiredDate = parsed.error.issues.find(
+        (issue) =>
+          (issue.path[0] === "actual_departure" &&
+            issue.message === "Tanggal keberangkatan wajib diisi.") ||
+          (issue.path[0] === "contract_end_date" &&
+            issue.message === "Tanggal selesai kontrak wajib diisi."),
+      );
       return {
         success: false,
-        message:
+        message: requiredDate?.message ??
           "Periksa perubahan status, tanggal, dan catatan (maksimal 500 karakter).",
       };
+    }
     const value = parsed.data;
     const { data, error } = await access.supabase
       .from("placements")
