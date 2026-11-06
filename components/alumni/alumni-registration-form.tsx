@@ -484,7 +484,7 @@ function AlumniRegistrationFormContent({ schoolName, returnTo }: { schoolName: s
                       <Input
                         id="registration-sector"
                         {...register("placement.work_sector")}
-                        placeholder="Contoh: Manufaktur"
+                        placeholder="Contoh: Pertanian"
                         maxLength={150}
                         className="min-h-12 bg-white"
                         aria-invalid={!!errors.placement?.work_sector}
