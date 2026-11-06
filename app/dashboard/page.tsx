@@ -5,6 +5,7 @@ import {
   distribution,
   filterRows,
   parseFilters,
+  securedPlacementRows,
   type SearchParams,
 } from "@/lib/monitoring/model";
 import { MonitoringFilterForm } from "@/components/monitoring/filters";
@@ -78,7 +79,8 @@ export default async function Dashboard({
     schoolCountsPromise,
   ]);
   const rows = filterRows(all, filters);
-  const countries = distribution(rows, "country");
+  const confirmedPlacementRows = securedPlacementRows(rows);
+  const countries = distribution(confirmedPlacementRows, "country");
   const years = distribution(rows, "year");
   const schools = distribution(rows, "school");
   const hasActiveFilters = Object.entries(filters).some(([key, value]) =>
@@ -156,7 +158,7 @@ export default async function Dashboard({
               Sebaran Negara Tujuan
             </h2>
             <p className="type-supporting mt-1 text-[#6B6D7A]">
-              Perbandingan negara tujuan dari alumni yang memiliki penempatan.
+              Negara tujuan alumni yang tercatat sudah mendapat penempatan.
             </p>
           </div>
           <Link

@@ -48,7 +48,7 @@ const valid = {
   expected_status: "persiapan_berangkat",
   new_status: "aktif_bekerja",
   note: "",
-  actual_departure: "",
+  actual_departure: "2020-01-01",
   contract_end_date: "",
 };
 const entry = {
@@ -86,6 +86,9 @@ function harness(options = {}) {
     planned_departure: null,
     contract_end_date: null,
     destination_country: "Jepang",
+    placement_secured: true,
+    placement_provider_name: "LPK Fiktif",
+    updated_at: "2026-11-05T00:00:00.000Z",
     company_name: "Perusahaan Fiktif",
     work_sector: "Teknologi",
     created_at: "2020-01-01T00:00:00Z",
@@ -99,9 +102,11 @@ function harness(options = {}) {
     },
     from(table) {
       const filters = [];
-      calls.push({ table, filters });
+      const selections = [];
+      calls.push({ table, filters, selections });
       const query = {
-        select() {
+        select(value) {
+          selections.push(value);
           return query;
         },
         eq(k, v) {
@@ -157,19 +162,40 @@ function harness(options = {}) {
           };
         },
         then(resolve, reject) {
+          const modernSelection = selections
+            .at(-1)
+            ?.includes("placement_secured");
+          if (
+            table === "placements" &&
+            config.legacyPlacementSchema &&
+            modernSelection
+          )
+            return Promise.resolve({
+              data: null,
+              error: { code: "42703" },
+              count: null,
+            }).then(resolve, reject);
+          const placementRow = () => {
+            const value = row();
+            if (config.legacyPlacementSchema) {
+              delete value.placement_secured;
+              delete value.placement_provider_name;
+            }
+            return value;
+          };
           const data =
             table === "placements"
               ? config.withHistory
                 ? [
-                    row(),
+                    placementRow(),
                     {
-                      ...row(),
+                      ...placementRow(),
                       id: previousId,
                       is_current: false,
                       status: "selesai_kontrak",
                     },
                   ]
-                : [row()]
+                : [placementRow()]
               : [];
           return Promise.resolve({
             data,
@@ -208,7 +234,7 @@ function harness(options = {}) {
   });
   const actions = load("app/dashboard/alumni/status-actions.ts", {
     "@/lib/alumni/access": access,
-      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
+    "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
     "@/lib/alumni/status": status,
     "next/cache": { revalidatePath: (value) => invalidated.push(value) },
   });
@@ -217,6 +243,7 @@ function harness(options = {}) {
       "@/lib/alumni/access": access,
       "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
       "@/lib/alumni/schema": schema,
+      "@/lib/alumni/placement-compat": load("lib/alumni/placement-compat.ts"),
       "@/lib/countries": countryData,
       "@/lib/alumni/history": historyModule,
       "next/navigation": {
@@ -236,9 +263,16 @@ function harness(options = {}) {
       },
       "@/components/alumni/alumni-form": { AlumniEditor: "identity-form" },
       "@/components/alumni/placement-form": { PlacementForm: "placement-form" },
+      "@/components/alumni/placement-editor": {
+        PlacementEditor: "placement-editor",
+      },
       "@/components/alumni/status-action": { StatusAction: "status-action" },
       "@/components/alumni/status-history": { StatusHistory: "status-history" },
-    }).default({ params: Promise.resolve({ id: alumniId }), searchParams: Promise.resolve({}) });
+      "@/components/dashboard-icon": { DashboardIcon: "dashboard-icon" },
+    }).default({
+      params: Promise.resolve({ id: alumniId }),
+      searchParams: Promise.resolve({}),
+    });
   }
   return { ...actions, detail, calls, rpcs, invalidated, config, supabase };
 }
@@ -258,14 +292,41 @@ test("transition matrix permits exactly three changes and keeps both terminal st
           ...valid,
           expected_status: from,
           new_status: to,
+          actual_departure: to === "aktif_bekerja" ? "2020-01-01" : "",
+          contract_end_date: to === "selesai_kontrak" ? "2021-01-01" : "",
         }).success,
         expected,
       );
     }
 });
 
-test("optional dates, note limit, calendar validity and date/status compatibility are validated", () => {
+test("departure date requirement, note limit, calendar validity and date/status compatibility are validated", () => {
   assert.equal(status.statusChangeSchema.safeParse(valid).success, true);
+  const missingDeparture = status.statusChangeSchema.safeParse({
+    ...valid,
+    actual_departure: "",
+  });
+  assert.equal(missingDeparture.success, false);
+  assert.equal(
+    missingDeparture.error.issues.find(
+      (issue) => issue.path[0] === "actual_departure",
+    )?.message,
+    "Tanggal keberangkatan wajib diisi.",
+  );
+  const missingContractEnd = status.statusChangeSchema.safeParse({
+    ...valid,
+    expected_status: "aktif_bekerja",
+    new_status: "selesai_kontrak",
+    actual_departure: "",
+    contract_end_date: "",
+  });
+  assert.equal(missingContractEnd.success, false);
+  assert.equal(
+    missingContractEnd.error.issues.find(
+      (issue) => issue.path[0] === "contract_end_date",
+    )?.message,
+    "Tanggal selesai kontrak wajib diisi.",
+  );
   assert.equal(
     status.statusChangeSchema.safeParse({
       ...valid,
@@ -293,6 +354,41 @@ test("optional dates, note limit, calendar validity and date/status compatibilit
       status.statusChangeSchema.safeParse({ ...valid, ...changes }).success,
       false,
     );
+});
+
+test("server rejects departure confirmation without a date before status mutation", async () => {
+  const h = harness();
+  const result = await h.changePlacementStatus({
+    ...valid,
+    actual_departure: "",
+  });
+  assert.equal(result.success, false);
+  assert.equal(result.message, "Tanggal keberangkatan wajib diisi.");
+  assert.equal(
+    h.calls.some((call) => call.table === "placements"),
+    false,
+  );
+  assert.equal(h.rpcs.length, 0);
+  assert.equal(h.invalidated.length, 0);
+});
+
+test("server rejects contract completion without an end date before status mutation", async () => {
+  const h = harness({ status: "aktif_bekerja" });
+  const result = await h.changePlacementStatus({
+    ...valid,
+    expected_status: "aktif_bekerja",
+    new_status: "selesai_kontrak",
+    actual_departure: "",
+    contract_end_date: "",
+  });
+  assert.equal(result.success, false);
+  assert.equal(result.message, "Tanggal selesai kontrak wajib diisi.");
+  assert.equal(
+    h.calls.some((call) => call.table === "placements"),
+    false,
+  );
+  assert.equal(h.rpcs.length, 0);
+  assert.equal(h.invalidated.length, 0);
 });
 
 test("Dinas, inactive/missing profiles, missing sessions and inactive schools cannot invoke the mutation RPC", async () => {
@@ -396,6 +492,7 @@ test("server validates dates against stored placement dates, not browser values"
           ...valid,
           expected_status: "aktif_bekerja",
           new_status: "selesai_kontrak",
+          actual_departure: "",
           contract_end_date: "2020-01-02",
           employment_start: null,
         })
@@ -563,7 +660,25 @@ test("detail fetches separate histories for current/historical placements; only 
     const actions = elements(tree, "status-action");
     assert.equal(actions.length, role === "petugas_sekolah" ? 1 : 0);
     if (actions.length) assert.equal(actions[0].props.placementId, placementId);
+    const editors = elements(tree, "placement-editor");
+    assert.equal(editors.length, role === "petugas_sekolah" ? 1 : 0);
+    if (editors.length)
+      assert.equal(editors[0].props.placement.id, placementId);
   }
+  const legacy = harness({
+    role: "petugas_sekolah",
+    withHistory: true,
+    legacyPlacementSchema: true,
+  });
+  await legacy.detail();
+  assert.equal(
+    legacy.calls.filter((call) => call.table === "placements").length,
+    2,
+  );
+  assert.deepEqual(
+    legacy.rpcs.map((call) => call.args.p_placement_id),
+    [placementId, previousId],
+  );
   const h = harness({ ownerSchool: "other-school", withHistory: true });
   await assert.rejects(h.detail(), /notFound/);
   assert.equal(h.rpcs.length, 0);

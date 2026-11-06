@@ -3,7 +3,7 @@
 import { FormSession, useFormActivity } from "@/components/ui/form-session";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { alumniReturnPath } from "@/lib/alumni/navigation";
 import { useRouter } from "next/navigation";
@@ -178,17 +178,22 @@ export function AlumniEditor({
   returnTo?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const editorId = useId();
   return (
-    <details
-      className="mt-6 border-t pt-4"
-      open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className="flex min-h-11 cursor-pointer items-center rounded text-sm font-medium text-accent underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
-        Edit identitas alumni
-      </summary>
+    <div className="mt-6 border-t pt-4">
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          aria-expanded={open}
+          aria-controls={editorId}
+          className="min-h-11"
+          onClick={() => setOpen((value) => !value)}
+        >
+          Edit identitas alumni
+        </Button>
+      </div>
       {open && (
-        <div className="mt-4 max-w-2xl">
+        <div id={editorId} className="mt-4 max-w-2xl">
           <AlumniForm
             alumni={alumni}
             returnTo={returnTo}
@@ -196,7 +201,7 @@ export function AlumniEditor({
           />
         </div>
       )}
-    </details>
+    </div>
   );
 }
 

@@ -1,7 +1,11 @@
 import "server-only";
 import type { requireAccess } from "@/lib/auth/access";
 import { readAllRows } from "@/lib/data/read-all";
-import { monitoringRowSchema } from "./model";
+import {
+  inferLegacyPlacementSecured,
+  isMissingPlacementStateSchema,
+} from "@/lib/alumni/placement-compat";
+import { legacyMonitoringRowSchema, monitoringRowSchema } from "./model";
 import type { MonitoringFilters } from "./model";
 import { z } from "zod";
 import { getCountryStorageNames } from "@/lib/countries";
@@ -9,18 +13,42 @@ import { getCountryStorageNames } from "@/lib/countries";
 export async function loadMonitoring(
   access: Awaited<ReturnType<typeof requireAccess>>,
 ) {
-  const rows = await readAllRows((start, end) => {
+  let useLegacySchema = false;
+  const fetchPage = (start: number, end: number, legacy: boolean) => {
     let query = access.supabase
       .from("alumni")
       .select(
-        "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, work_sector, company_name, planned_departure, actual_departure, employment_start, contract_end_date, is_current)",
+        legacy
+          ? "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, work_sector, company_name, planned_departure, actual_departure, employment_start, contract_end_date, is_current)"
+          : "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, placement_secured, placement_provider_name, work_sector, company_name, planned_departure, actual_departure, employment_start, contract_end_date, is_current)",
         { count: "exact" },
       )
       .eq("placements.is_current", true);
     if (access.canWrite) query = query.eq("school_id", access.schoolId!);
     return query.order("id").range(start, end);
+  };
+  const rows = await readAllRows<unknown>(async (start, end) => {
+    let result = await fetchPage(start, end, useLegacySchema);
+    if (
+      !useLegacySchema &&
+      start === 0 &&
+      isMissingPlacementStateSchema(result.error)
+    ) {
+      useLegacySchema = true;
+      result = await fetchPage(start, end, true);
+    }
+    return result;
   });
-  const parsed = monitoringRowSchema.array().parse(rows);
+  const parsed = useLegacySchema
+    ? legacyMonitoringRowSchema.array().parse(rows).map((row) => ({
+        ...row,
+        placements: row.placements.map((placement) => ({
+          ...placement,
+          placement_secured: inferLegacyPlacementSecured(placement.status),
+          placement_provider_name: null,
+        })),
+      }))
+    : monitoringRowSchema.array().parse(rows);
   if (new Set(parsed.map((row) => row.id)).size !== parsed.length)
     throw new Error("Data changed during pagination; reload required");
   return parsed;

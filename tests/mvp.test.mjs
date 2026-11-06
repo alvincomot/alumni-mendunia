@@ -43,10 +43,21 @@ function loader(mocks = {}) {
 }
 const load = loader();
 const model = load("lib/monitoring/model.ts");
+const monitoringData = load("lib/monitoring/data.ts");
+const placementCompat = load("lib/alumni/placement-compat.ts");
 const userSchema = load("lib/users/schema.ts");
+const alumniListPageSource = fs.readFileSync(
+  path.join(root, "app/dashboard/alumni/page.tsx"),
+  "utf8",
+);
+const alumniDetailPageSource = fs.readFileSync(
+  path.join(root, "app/dashboard/alumni/[id]/page.tsx"),
+  "utf8",
+);
 const uid = "00000000-0000-4000-8000-000000000001";
 const otherId = "00000000-0000-4000-8000-000000000002";
 const schoolId = "00000000-0000-4000-8000-000000000003";
+const fourthId = "00000000-0000-4000-8000-000000000004";
 const input = {
   full_name: "Petugas Fiktif",
   role: "petugas_sekolah",
@@ -65,6 +76,8 @@ const row = {
       id: otherId,
       status: "aktif_bekerja",
       destination_country: "Jepang",
+      placement_secured: true,
+      placement_provider_name: "LPK Fiktif",
       work_sector: "Teknologi",
       company_name: "Perusahaan Fiktif",
       planned_departure: null,
@@ -75,6 +88,56 @@ const row = {
     },
   ],
 };
+
+function monitoringAccess(firstError) {
+  const selections = [];
+  return {
+    selections,
+    access: {
+      canWrite: false,
+      schoolId: null,
+      supabase: {
+        from() {
+          let selection = "";
+          const query = {
+            select(value) {
+              selection = value;
+              selections.push(value);
+              return query;
+            },
+            eq() {
+              return query;
+            },
+            order() {
+              return query;
+            },
+            range() {
+              return query;
+            },
+            then(resolve) {
+              const modern = selection.includes("placement_secured");
+              const placement = { ...row.placements[0] };
+              if (!modern) {
+                delete placement.placement_secured;
+                delete placement.placement_provider_name;
+              }
+              return Promise.resolve(
+                modern && firstError
+                  ? { data: null, count: null, error: firstError }
+                  : {
+                      data: [{ ...row, placements: [placement] }],
+                      count: 1,
+                      error: null,
+                    },
+              ).then(resolve);
+            },
+          };
+          return query;
+        },
+      },
+    },
+  };
+}
 
 test("monitoring accepts one current placement and rejects historical/double-current input", () => {
   assert.equal(model.monitoringRowSchema.safeParse(row).success, true);
@@ -98,32 +161,83 @@ test("monitoring accepts one current placement and rejects historical/double-cur
   );
 });
 
+test("alumni table shows only the primary status while detail preserves placement context", () => {
+  assert.match(alumniListPageSource, /<PlacementBadge status=\{p\.status\}/);
+  assert.doesNotMatch(alumniListPageSource, /placementStateLabel/);
+  assert.match(alumniDetailPageSource, /Status perolehan penempatan/);
+  assert.match(alumniDetailPageSource, /Status penempatan belum tercatat/);
+});
+
+test("monitoring infers provable legacy placement states without hiding operational errors", async () => {
+  assert.equal(
+    placementCompat.inferLegacyPlacementSecured("persiapan_berangkat"),
+    null,
+  );
+  assert.equal(
+    placementCompat.inferLegacyPlacementSecured("batal_berangkat"),
+    null,
+  );
+  assert.equal(
+    placementCompat.inferLegacyPlacementSecured("selesai_kontrak"),
+    true,
+  );
+  const legacy = monitoringAccess({ code: "42703" });
+  const rows = await monitoringData.loadMonitoring(legacy.access);
+  assert.equal(legacy.selections.length, 2);
+  assert.equal(rows[0].placements[0].placement_secured, true);
+  assert.equal(rows[0].placements[0].placement_provider_name, null);
+
+  const unavailable = monitoringAccess({ code: "08006" });
+  await assert.rejects(
+    monitoringData.loadMonitoring(unavailable.access),
+    /Data scope unavailable or too large/,
+  );
+  assert.equal(unavailable.selections.length, 1);
+});
+
 test("summaries count alumni once, retain terminal current placements and handle zero records", () => {
   const rows = [
     row,
-    { ...row, id: otherId, placements: [] },
     {
       ...row,
-      id: schoolId,
+      id: otherId,
+      placements: [
+        {
+          ...row.placements[0],
+          status: "persiapan_berangkat",
+          placement_secured: false,
+          placement_provider_name: null,
+          work_sector: null,
+        },
+      ],
+    },
+    { ...row, id: schoolId, placements: [] },
+    {
+      ...row,
+      id: fourthId,
       placements: [{ ...row.placements[0], status: "selesai_kontrak" }],
     },
   ];
   assert.deepEqual(model.summarize(rows), {
-    total: 3,
-    unplaced: 1,
+    total: 4,
+    unplaced: 2,
     statuses: {
-      persiapan_berangkat: 0,
+      persiapan_berangkat: 1,
       aktif_bekerja: 1,
       selesai_kontrak: 1,
       batal_berangkat: 0,
     },
   });
   assert.equal(model.summarize([]).total, 0);
+  assert.deepEqual(model.securedPlacementRows(rows).map((item) => item.id), [
+    uid,
+    fourthId,
+  ]);
   assert.equal(
     model
       .distribution(rows, "country")
       .reduce((sum, group) => sum + group.count, 0),
-    3,
+    4,
   );
   assert.equal(
     model.distribution([{ ...row, school_id: uid }, row], "school").length,
@@ -149,6 +263,23 @@ test("every report dimension filters the same data used in exports", () => {
     );
   assert.equal(
     model.filterRows(
+      [
+        {
+          ...row,
+          placements: [
+            {
+              ...row.placements[0],
+              placement_secured: false,
+            },
+          ],
+        },
+      ],
+      model.parseFilters({ status: "unplaced" }),
+    ).length,
+    1,
+  );
+  assert.equal(
+    model.filterRows(
       [{ ...row, placements: [] }],
       model.parseFilters({ status: "unplaced" }),
     ).length,
@@ -169,6 +300,12 @@ test("every report dimension filters the same data used in exports", () => {
     1,
   );
   assert.equal(model.reportValues(legacy)[4], "Jepang");
+  assert.equal(model.reportValues(legacy)[6], "Sudah ada penempatan");
+  assert.equal(model.reportValues(legacy)[7], "LPK Fiktif");
+  assert.equal(
+    model.reportValues({ ...row, placements: [] })[6],
+    "Status penempatan belum tercatat",
+  );
   assert.deepEqual(
     model.distribution([row, legacy], "country"),
     [{ id: "Jepang", name: "Jepang", count: 2 }],

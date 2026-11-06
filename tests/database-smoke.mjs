@@ -26,7 +26,9 @@ async function check(title, fn) {
 async function as(number) {
   await db.exec("RESET ROLE");
   await db.query("SELECT set_config('app.initial_password_change', '', false)");
-  await db.query("SELECT set_config('app.password_change_actor_id', '', false)");
+  await db.query(
+    "SELECT set_config('app.password_change_actor_id', '', false)",
+  );
   await db.query("SELECT set_config('app.school_password_reissue', '', false)");
   await db.query(
     "SELECT set_config('app.school_password_reissue_request_id', '', false)",
@@ -42,7 +44,9 @@ async function as(number) {
 async function asService() {
   await db.exec("RESET ROLE");
   await db.query("SELECT set_config('app.initial_password_change', '', false)");
-  await db.query("SELECT set_config('app.password_change_actor_id', '', false)");
+  await db.query(
+    "SELECT set_config('app.password_change_actor_id', '', false)",
+  );
   await db.query("SELECT set_config('app.school_password_reissue', '', false)");
   await db.query(
     "SELECT set_config('app.school_password_reissue_request_id', '', false)",
@@ -56,7 +60,9 @@ async function asService() {
 async function asAuthenticatedWithoutSession() {
   await db.exec("RESET ROLE");
   await db.query("SELECT set_config('app.initial_password_change', '', false)");
-  await db.query("SELECT set_config('app.password_change_actor_id', '', false)");
+  await db.query(
+    "SELECT set_config('app.password_change_actor_id', '', false)",
+  );
   await db.query("SELECT set_config('app.school_password_reissue', '', false)");
   await db.query(
     "SELECT set_config('app.school_password_reissue_request_id', '', false)",
@@ -68,7 +74,9 @@ async function asAuthenticatedWithoutSession() {
 async function asAnonymous() {
   await db.exec("RESET ROLE");
   await db.query("SELECT set_config('app.initial_password_change', '', false)");
-  await db.query("SELECT set_config('app.password_change_actor_id', '', false)");
+  await db.query(
+    "SELECT set_config('app.password_change_actor_id', '', false)",
+  );
   await db.query("SELECT set_config('app.school_password_reissue', '', false)");
   await db.query(
     "SELECT set_config('app.school_password_reissue_request_id', '', false)",
@@ -80,7 +88,9 @@ async function asAnonymous() {
 async function asServiceWithoutClaim() {
   await db.exec("RESET ROLE");
   await db.query("SELECT set_config('app.initial_password_change', '', false)");
-  await db.query("SELECT set_config('app.password_change_actor_id', '', false)");
+  await db.query(
+    "SELECT set_config('app.password_change_actor_id', '', false)",
+  );
   await db.query("SELECT set_config('app.school_password_reissue', '', false)");
   await db.query(
     "SELECT set_config('app.school_password_reissue_request_id', '', false)",
@@ -99,6 +109,39 @@ async function register(
     await db.query(
       "SELECT public.create_placement_guarded($1,$2,$4,'Teknologi','Perusahaan Fiktif',NULL,$3,NULL,NULL,NULL) AS id",
       [alumni, expected, status, country],
+    )
+  ).rows[0].id;
+}
+
+async function registerWithState({
+  alumni,
+  expected = null,
+  secured,
+  provider = null,
+  sector = null,
+  planned = null,
+  status = "persiapan_berangkat",
+  actual = null,
+  employmentStart = null,
+  contractEnd = null,
+  country = "Jepang",
+}) {
+  return (
+    await db.query(
+      "SELECT public.create_placement_guarded($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS id",
+      [
+        alumni,
+        expected,
+        country,
+        secured,
+        provider,
+        sector,
+        planned,
+        status,
+        actual,
+        employmentStart,
+        contractEnd,
+      ],
     )
   ).rows[0].id;
 }
@@ -218,8 +261,14 @@ async function verifyNativeMigrationDependencies() {
       UPDATE app_private.school_auth_accounts SET status='SUSPENDED',resume_status='UNCLAIMED' WHERE school_id='${user(44)}';
       INSERT INTO app_private.school_auth_tokens(school_id,purpose,token_hash,expires_at)
         VALUES ('${user(42)}','activation',repeat('a',64),now()+interval '1 hour');`);
-    const legacyAccounts = (await cleanupDb.query("SELECT to_jsonb(a) AS value FROM app_private.school_auth_accounts a ORDER BY school_id")).rows;
-    const legacyTokens = (await cleanupDb.query("SELECT * FROM app_private.school_auth_tokens")).rows;
+    const legacyAccounts = (
+      await cleanupDb.query(
+        "SELECT to_jsonb(a) AS value FROM app_private.school_auth_accounts a ORDER BY school_id",
+      )
+    ).rows;
+    const legacyTokens = (
+      await cleanupDb.query("SELECT * FROM app_private.school_auth_tokens")
+    ).rows;
 
     assert.equal(
       (
@@ -259,8 +308,19 @@ async function verifyNativeMigrationDependencies() {
     await cleanupDb.exec(
       migrationSql("20261028000200_native_school_self_activation.sql"),
     );
-    assert.deepEqual((await cleanupDb.query("SELECT to_jsonb(a)-'activation_request_id'-'activation_requested_at'-'activation_expires_at'-'activation_operation_is_new'-'activation_operation_ttl_seconds' AS value FROM app_private.school_auth_accounts a ORDER BY school_id")).rows, legacyAccounts);
-    assert.deepEqual((await cleanupDb.query("SELECT * FROM app_private.school_auth_tokens")).rows, legacyTokens);
+    assert.deepEqual(
+      (
+        await cleanupDb.query(
+          "SELECT to_jsonb(a)-'activation_request_id'-'activation_requested_at'-'activation_expires_at'-'activation_operation_is_new'-'activation_operation_ttl_seconds' AS value FROM app_private.school_auth_accounts a ORDER BY school_id",
+        )
+      ).rows,
+      legacyAccounts,
+    );
+    assert.deepEqual(
+      (await cleanupDb.query("SELECT * FROM app_private.school_auth_tokens"))
+        .rows,
+      legacyTokens,
+    );
     assert.equal(
       (
         await cleanupDb.query(
@@ -295,9 +355,67 @@ async function verifyNativeMigrationDependencies() {
     await cleanupDb.close();
   }
 }
+
+async function verifyPlacementStateBackfill() {
+  const placementDb = new PGlite();
+  try {
+    await placementDb.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+      CREATE SCHEMA auth;
+      CREATE TABLE auth.users(id uuid PRIMARY KEY);
+      CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+      CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.role',true),'') $$;
+      GRANT USAGE ON SCHEMA auth, public TO authenticated, service_role;
+      GRANT EXECUTE ON FUNCTION auth.uid(), auth.role() TO authenticated, service_role;`);
+    for (const filename of [
+      "20261021000100_initial_schema.sql",
+      "20261023000100_guard_placement_registration.sql",
+      "20261023000200_guard_profile_administration.sql",
+      "20261023000300_guard_last_active_admin.sql",
+    ])
+      await placementDb.exec(migrationSql(filename));
+    await placementDb.exec(`
+      INSERT INTO public.schools(id,npsn,name,city)
+        VALUES ('${user(51)}','00000051','SMK Backfill Fiktif','Jakarta');
+      INSERT INTO public.alumni(id,school_id,full_name,graduation_year,major) VALUES
+        ('${user(52)}','${user(51)}','Alumni Persiapan Historis',2020,'Teknik'),
+        ('${user(53)}','${user(51)}','Alumni Aktif Historis',2020,'Teknik');
+      INSERT INTO public.placements(id,alumni_id,destination_country,company_name,work_sector,status,is_current) VALUES
+        ('${user(54)}','${user(52)}','Jepang','Pemberi Kerja Historis','Manufaktur','persiapan_berangkat',true),
+        ('${user(55)}','${user(53)}','Jepang','Pemberi Kerja Aktif','Teknologi','aktif_bekerja',true);
+    `);
+    await placementDb.exec(
+      migrationSql("20261105000100_initial_placement_state.sql"),
+    );
+    const rows = (
+      await placementDb.query(
+        "SELECT id,placement_secured,placement_provider_name,company_name FROM public.placements ORDER BY id",
+      )
+    ).rows;
+    assert.deepEqual(rows, [
+      {
+        id: user(54),
+        placement_secured: null,
+        placement_provider_name: null,
+        company_name: "Pemberi Kerja Historis",
+      },
+      {
+        id: user(55),
+        placement_secured: true,
+        placement_provider_name: null,
+        company_name: "Pemberi Kerja Aktif",
+      },
+    ]);
+    console.log(
+      "PASS placement migration preserves unknown preparation state and legacy employer semantics",
+    );
+  } finally {
+    await placementDb.close();
+  }
+}
 try {
   await verifyProvisioningPreflight();
   await verifyNativeMigrationDependencies();
+  await verifyPlacementStateBackfill();
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
     CREATE SCHEMA auth;
     CREATE TABLE auth.users(id uuid PRIMARY KEY,
@@ -319,6 +437,10 @@ try {
     "20261028000100_school_account_lifecycle.sql",
     "20261028000200_native_school_self_activation.sql",
     "20261029000100_harden_school_activation_completion.sql",
+    "20261105000100_initial_placement_state.sql",
+    "20261105000200_edit_current_placement_details.sql",
+    "20261106000100_preserve_planned_departure_on_placement_edit.sql",
+    "20261106000200_require_contract_end_date_on_completion.sql",
   ]) {
     // PGlite does not package pgcrypto; core PostgreSQL gen_random_uuid() is sufficient here.
     await db.exec(migrationSql(filename));
@@ -408,7 +530,7 @@ try {
       await assert.rejects(register(alumni.id, first), /unavailable/);
       await assert.rejects(
         db.query(
-          "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja')",
+          "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja',NULL,'2020-01-01')",
           [first],
         ),
         /tidak diizinkan/,
@@ -420,18 +542,33 @@ try {
     "status changes are atomic, expected-status checked and histories immutable",
     async () => {
       await db.query(
-        "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja','Catatan fiktif')",
+        "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja','Catatan fiktif','2020-01-01')",
         [first],
       );
       await assert.rejects(
         db.query(
-          "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja')",
+          "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja',NULL,'2020-01-01')",
           [first],
         ),
         /Status berubah/,
       );
+      await assert.rejects(
+        db.query(
+          "SELECT public.change_placement_status($1,'aktif_bekerja','selesai_kontrak')",
+          [first],
+        ),
+        /Tanggal selesai kontrak wajib diisi/,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.status_histories",
+          )
+        ).rows[0].n,
+        2,
+      );
       await db.query(
-        "SELECT public.change_placement_status($1,'aktif_bekerja','selesai_kontrak')",
+        "SELECT public.change_placement_status($1,'aktif_bekerja','selesai_kontrak',NULL,NULL,'2020-01-02')",
         [first],
       );
       assert.equal(
@@ -506,6 +643,338 @@ try {
     },
   );
   await check(
+    "explicit placement state is atomic, constrained and school-scoped",
+    async () => {
+      await as(3);
+      const withoutPlacementAlumni = (
+        await db.query(
+          "INSERT INTO public.alumni(full_name,graduation_year,major) VALUES ('Alumni Belum Ditempatkan',2021,'Teknik') RETURNING id",
+        )
+      ).rows[0].id;
+      const withoutPlacement = await registerWithState({
+        alumni: withoutPlacementAlumni,
+        secured: false,
+      });
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT placement_secured,placement_provider_name,work_sector,planned_departure FROM public.placements WHERE id=$1",
+            [withoutPlacement],
+          )
+        ).rows[0],
+        {
+          placement_secured: false,
+          placement_provider_name: null,
+          work_sector: null,
+          planned_departure: null,
+        },
+      );
+      await assert.rejects(
+        registerWithState({
+          alumni: withoutPlacementAlumni,
+          secured: false,
+          provider: "LPK tidak boleh tersimpan",
+        }),
+        /harus kosong/,
+      );
+
+      const historyBefore = (
+        await db.query(
+          "SELECT count(*)::int AS n FROM public.status_histories WHERE placement_id=$1",
+          [withoutPlacement],
+        )
+      ).rows[0].n;
+      await as(1);
+      const auditBefore = (
+        await db.query(
+          "SELECT count(*)::int AS n FROM public.audit_logs WHERE entity_type='placements' AND entity_id=$1",
+          [withoutPlacement],
+        )
+      ).rows[0].n;
+      await as(3);
+      await assert.rejects(
+        db.query(
+          "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja')",
+          [withoutPlacement],
+        ),
+        /Tanggal keberangkatan wajib diisi/,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.status_histories WHERE placement_id=$1",
+            [withoutPlacement],
+          )
+        ).rows[0].n,
+        historyBefore,
+      );
+      await db.query(
+        "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja',NULL,'2020-01-01')",
+        [withoutPlacement],
+      );
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT status,placement_secured,actual_departure::text FROM public.placements WHERE id=$1",
+            [withoutPlacement],
+          )
+        ).rows[0],
+        {
+          status: "aktif_bekerja",
+          placement_secured: true,
+          actual_departure: "2020-01-01",
+        },
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.status_histories WHERE placement_id=$1",
+            [withoutPlacement],
+          )
+        ).rows[0].n,
+        historyBefore + 1,
+      );
+      await as(1);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.audit_logs WHERE entity_type='placements' AND entity_id=$1",
+            [withoutPlacement],
+          )
+        ).rows[0].n,
+        auditBefore + 1,
+      );
+      await as(3);
+
+      const securedAlumni = (
+        await db.query(
+          "INSERT INTO public.alumni(full_name,graduation_year,major) VALUES ('Alumni Sudah Ditempatkan',2022,'Teknik') RETURNING id",
+        )
+      ).rows[0].id;
+      const securedPlacement = await registerWithState({
+        alumni: securedAlumni,
+        secured: true,
+        provider: "LPK Fiktif",
+        sector: "Manufaktur",
+        planned: "2027-01-15",
+      });
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT placement_secured,placement_provider_name,work_sector,planned_departure::text FROM public.placements WHERE id=$1",
+            [securedPlacement],
+          )
+        ).rows[0],
+        {
+          placement_secured: true,
+          placement_provider_name: "LPK Fiktif",
+          work_sector: "Manufaktur",
+          planned_departure: "2027-01-15",
+        },
+      );
+      await assert.rejects(
+        db.exec(
+          `UPDATE public.placements SET placement_secured=false WHERE id='${securedPlacement}'`,
+        ),
+        /permission denied/,
+      );
+
+      const editSnapshot = (
+        await db.query(
+          "SELECT status,updated_at FROM public.placements WHERE id=$1",
+          [securedPlacement],
+        )
+      ).rows[0];
+      const editHistoryBefore = (
+        await db.query(
+          "SELECT count(*)::int AS n FROM public.status_histories WHERE placement_id=$1",
+          [securedPlacement],
+        )
+      ).rows[0].n;
+      await as(1);
+      const editAuditBefore = (
+        await db.query(
+          "SELECT count(*)::int AS n FROM public.audit_logs WHERE entity_type='placements' AND entity_id=$1",
+          [securedPlacement],
+        )
+      ).rows[0].n;
+      await as(3);
+      await db.query(
+        "SELECT public.update_current_placement_details($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        [
+          securedPlacement,
+          editSnapshot.status,
+          editSnapshot.updated_at,
+          "Korea Selatan",
+          true,
+          "LPK Fiktif Diperbarui",
+          "Teknologi",
+          "2027-02-01",
+          null,
+          null,
+          null,
+        ],
+      );
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT destination_country,placement_secured,placement_provider_name,work_sector,planned_departure::text,status FROM public.placements WHERE id=$1",
+            [securedPlacement],
+          )
+        ).rows[0],
+        {
+          destination_country: "Korea Selatan",
+          placement_secured: true,
+          placement_provider_name: "LPK Fiktif Diperbarui",
+          work_sector: "Teknologi",
+          planned_departure: "2027-02-01",
+          status: "persiapan_berangkat",
+        },
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.status_histories WHERE placement_id=$1",
+            [securedPlacement],
+          )
+        ).rows[0].n,
+        editHistoryBefore,
+      );
+      await as(1);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.audit_logs WHERE entity_type='placements' AND entity_id=$1",
+            [securedPlacement],
+          )
+        ).rows[0].n,
+        editAuditBefore + 1,
+      );
+      await as(3);
+      await assert.rejects(
+        db.query(
+          "SELECT public.update_current_placement_details($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+          [
+            securedPlacement,
+            editSnapshot.status,
+            editSnapshot.updated_at,
+            "Jepang",
+            true,
+            "LPK Usang",
+            "Manufaktur",
+            "2027-03-01",
+            null,
+            null,
+            null,
+          ],
+        ),
+        /snapshot changed/,
+      );
+      const latestUpdatedAt = (
+        await db.query("SELECT updated_at FROM public.placements WHERE id=$1", [
+          securedPlacement,
+        ])
+      ).rows[0].updated_at;
+      for (const account of [1, 2, 4]) {
+        await as(account);
+        await assert.rejects(
+          db.query(
+            "SELECT public.update_current_placement_details($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+            [
+              securedPlacement,
+              "persiapan_berangkat",
+              latestUpdatedAt,
+              "Jepang",
+              true,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+            ],
+          ),
+          /unavailable/,
+        );
+      }
+      await as(4);
+      await assert.rejects(
+        registerWithState({ alumni: securedAlumni, secured: true }),
+        /unavailable/,
+      );
+      await as(3);
+      await db.query(
+        "SELECT public.change_placement_status($1,$2,$3,$4,$5,$6)",
+        [
+          securedPlacement,
+          "persiapan_berangkat",
+          "aktif_bekerja",
+          null,
+          "2026-01-01",
+          null,
+        ],
+      );
+      const activeSnapshot = (
+        await db.query(
+          "SELECT status,planned_departure::text,actual_departure::text,updated_at FROM public.placements WHERE id=$1",
+          [securedPlacement],
+        )
+      ).rows[0];
+      assert.equal(activeSnapshot.planned_departure, "2027-02-01");
+      await assert.rejects(
+        db.query(
+          "SELECT public.update_current_placement_details($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+          [
+            securedPlacement,
+            activeSnapshot.status,
+            activeSnapshot.updated_at,
+            "Arab Saudi",
+            true,
+            "LPK Tidak Sah",
+            "Teknologi",
+            "2027-03-01",
+            activeSnapshot.actual_departure,
+            "2026-01-02",
+            null,
+          ],
+        ),
+        /Historical planned departure cannot be changed/,
+      );
+      await db.query(
+        "SELECT public.update_current_placement_details($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        [
+          securedPlacement,
+          activeSnapshot.status,
+          activeSnapshot.updated_at,
+          "Arab Saudi",
+          true,
+          "LPK Aktif Diperbarui",
+          "Teknologi",
+          activeSnapshot.planned_departure,
+          activeSnapshot.actual_departure,
+          "2026-01-02",
+          null,
+        ],
+      );
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT destination_country,placement_provider_name,planned_departure::text,actual_departure::text,employment_start::text,status FROM public.placements WHERE id=$1",
+            [securedPlacement],
+          )
+        ).rows[0],
+        {
+          destination_country: "Arab Saudi",
+          placement_provider_name: "LPK Aktif Diperbarui",
+          planned_departure: "2027-02-01",
+          actual_departure: "2026-01-01",
+          employment_start: "2026-01-02",
+          status: "aktif_bekerja",
+        },
+      );
+    },
+  );
+  await check(
     "Dinas remains read-only for alumni and cannot invoke placement creation",
     async () => {
       for (const account of [1, 2]) {
@@ -513,7 +982,7 @@ try {
         assert.equal(
           (await db.query("SELECT count(*)::int AS n FROM public.alumni"))
             .rows[0].n,
-          1,
+          3,
         );
         assert.equal(
           (
@@ -672,9 +1141,12 @@ try {
         user(7),
         user(8),
       ]);
-      await db.query(`INSERT INTO public.schools(id,npsn,name,city) VALUES
+      await db.query(
+        `INSERT INTO public.schools(id,npsn,name,city) VALUES
         ($1,'00000013','SMK Fiktif C','Jakarta'),
-        ($2,'00000014','SMK Fiktif D','Jakarta')`, [user(13), user(14)]);
+        ($2,'00000014','SMK Fiktif D','Jakarta')`,
+        [user(13), user(14)],
+      );
       const privileges = (
         await db.query(`SELECT
           has_function_privilege('authenticated', 'public.provision_school_profile(uuid,text,uuid)', 'EXECUTE') AS authenticated_wrapper,
@@ -727,9 +1199,10 @@ try {
       );
       await db.exec("RESET ROLE");
       await assert.rejects(
-        db.query("UPDATE public.profiles SET full_name='Ditolak' WHERE user_id=$1", [
-          user(2),
-        ]),
+        db.query(
+          "UPDATE public.profiles SET full_name='Ditolak' WHERE user_id=$1",
+          [user(2)],
+        ),
         /administrator required/,
       );
       await as(null);
@@ -1138,7 +1611,7 @@ try {
       assert.equal(
         (await db.query("SELECT count(*)::int AS n FROM public.alumni")).rows[0]
           .n,
-        2,
+        4,
       );
       assert.equal(
         (
@@ -1170,267 +1643,674 @@ try {
       );
     },
   );
-  await check("native activation is service-only, email-verified, password-complete and isolated by school", async () => {
-    await as(null);
-    await db.exec(`INSERT INTO public.schools(id,npsn,name,city) VALUES
+  await check(
+    "native activation is service-only, email-verified, password-complete and isolated by school",
+    async () => {
+      await as(null);
+      await db.exec(`INSERT INTO public.schools(id,npsn,name,city) VALUES
       ('${user(15)}','00000015','SMK Aktivasi Fiktif','Jakarta'),
       ('${user(16)}','00000016','SMK Kedaluwarsa Fiktif','Jakarta');
       INSERT INTO auth.users(id,email,encrypted_password,email_confirmed_at) VALUES
       ('${user(9)}','activation@example.test','',NULL),
       ('${user(10)}','expired@example.test','',NULL);`);
-    for (const role of [asAnonymous, asAuthenticatedWithoutSession, () => as(1), () => as(2), () => as(4)]) {
-      await role();
-      await assert.rejects(db.query("SELECT public.school_activation_request('00000015','activation@example.test')"), /permission denied/);
-      await assert.rejects(db.query("SELECT public.school_activation_bind($1,$2,$3)", [user(98), user(97), user(9)]), /permission denied/);
-      await assert.rejects(db.query("SELECT public.school_activation_cancel($1,$2)", [user(98), user(97)]), /permission denied/);
-      await assert.rejects(db.query("SELECT public.complete_school_activation($1,$2)", [user(9), user(99)]), /permission denied/);
-    }
-    await asService();
-    const lookup = (await db.query("SELECT public.school_auth_lookup('00000015') AS value")).rows[0].value;
-    assert.equal(lookup.name, "SMK Aktivasi Fiktif");
-    assert.equal(lookup.npsn, "00000015");
-    assert.equal(lookup.status, "UNCLAIMED");
-    assert.equal("email" in lookup, false);
-    assert.equal("user_id" in lookup, false);
-    await assert.rejects(
-      db.query("SELECT public.school_activation_request('00000015','activation@example.test',299)"),
-      /Invalid activation expiry/,
-    );
-    let requested = (await db.query("SELECT public.school_activation_request('00000015','activation@example.test',3600) AS value")).rows[0].value;
-    assert.equal(requested.user_id, user(9));
-    assert.ok(requested.operation_id);
-    await as(null);
-    assert.deepEqual((await db.query(
-      "SELECT status,last_sent_at,activation_expires_at FROM app_private.school_auth_accounts WHERE school_id=$1",
-      [user(15)],
-    )).rows[0], {
-      status: "UNCLAIMED", last_sent_at: null, activation_expires_at: null,
-    });
-    await asService();
-    await assert.rejects(db.query("SELECT public.school_activation_request('00000015','other@example.test')"), /request in progress/);
-    assert.equal(
-      (await db.query("SELECT public.school_activation_bind($1,$2)", [requested.request_id, user(9)])).rows[0].school_activation_bind,
-      true,
-    );
-    await as(null);
-    const accepted = (await db.query(
-      "SELECT activation_expires_at,activation_requested_at,activation_password_fingerprint,last_sent_at,operation_id FROM app_private.school_auth_accounts WHERE school_id=$1",
-      [user(15)],
-    )).rows[0];
-    assert.equal(accepted.operation_id, null);
-    assert.ok(accepted.last_sent_at);
-    assert.match(accepted.activation_password_fingerprint, /^[a-f0-9]{32}$/);
-    const acceptedTtl =
-      (new Date(accepted.activation_expires_at) - new Date(accepted.activation_requested_at)) / 1000;
-    assert.ok(acceptedTtl >= 3599 && acceptedTtl <= 3601);
-    await asService();
-    const initialRetry = (
-      await db.query(
-        "SELECT public.school_auth_lookup('00000015') AS value",
-      )
-    ).rows[0].value.retry_after;
-    assert.ok(initialRetry > 0 && initialRetry <= 60);
-    const otherSchoolLookup = (
-      await db.query(
-        "SELECT public.school_auth_lookup('00000016') AS value",
-      )
-    ).rows[0].value;
-    assert.equal(otherSchoolLookup.npsn, "00000016");
-    assert.equal(otherSchoolLookup.retry_after, 0);
-    const otherSchoolRequest = (
-      await db.query(
-        "SELECT public.school_activation_request('00000016','expired@example.test',3600) AS value",
-      )
-    ).rows[0].value;
-    assert.equal(
-      (
+      for (const role of [
+        asAnonymous,
+        asAuthenticatedWithoutSession,
+        () => as(1),
+        () => as(2),
+        () => as(4),
+      ]) {
+        await role();
+        await assert.rejects(
+          db.query(
+            "SELECT public.school_activation_request('00000015','activation@example.test')",
+          ),
+          /permission denied/,
+        );
+        await assert.rejects(
+          db.query("SELECT public.school_activation_bind($1,$2,$3)", [
+            user(98),
+            user(97),
+            user(9),
+          ]),
+          /permission denied/,
+        );
+        await assert.rejects(
+          db.query("SELECT public.school_activation_cancel($1,$2)", [
+            user(98),
+            user(97),
+          ]),
+          /permission denied/,
+        );
+        await assert.rejects(
+          db.query("SELECT public.complete_school_activation($1,$2)", [
+            user(9),
+            user(99),
+          ]),
+          /permission denied/,
+        );
+      }
+      await asService();
+      const lookup = (
+        await db.query("SELECT public.school_auth_lookup('00000015') AS value")
+      ).rows[0].value;
+      assert.equal(lookup.name, "SMK Aktivasi Fiktif");
+      assert.equal(lookup.npsn, "00000015");
+      assert.equal(lookup.status, "UNCLAIMED");
+      assert.equal("email" in lookup, false);
+      assert.equal("user_id" in lookup, false);
+      await assert.rejects(
+        db.query(
+          "SELECT public.school_activation_request('00000015','activation@example.test',299)",
+        ),
+        /Invalid activation expiry/,
+      );
+      let requested = (
         await db.query(
-          "SELECT public.school_activation_cancel($1,$2) AS value",
-          [otherSchoolRequest.request_id, otherSchoolRequest.operation_id],
+          "SELECT public.school_activation_request('00000015','activation@example.test',3600) AS value",
         )
-      ).rows[0].value,
-      true,
-    );
-    await assert.rejects(db.query("SELECT public.school_activation_request('00000015')"), /wait before resending/);
-    await as(null);
-    await db.query(
-      "UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '45 seconds' WHERE school_id=$1",
-      [user(15)],
-    );
-    await asService();
-    const prematureRetry = (
-      await db.query(
-        "SELECT public.school_auth_lookup('00000015') AS value",
-      )
-    ).rows[0].value.retry_after;
-    assert.ok(prematureRetry >= 14 && prematureRetry <= 15);
-    await assert.rejects(
-      db.query("SELECT public.school_activation_request('00000015')"),
-      /wait before resending/,
-    );
-    await as(null);
-    await db.query(
-      "UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '61 seconds' WHERE school_id=$1",
-      [user(15)],
-    );
-    await asService();
-    assert.equal(
-      (
+      ).rows[0].value;
+      assert.equal(requested.user_id, user(9));
+      assert.ok(requested.operation_id);
+      await as(null);
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT status,last_sent_at,activation_expires_at FROM app_private.school_auth_accounts WHERE school_id=$1",
+            [user(15)],
+          )
+        ).rows[0],
+        {
+          status: "UNCLAIMED",
+          last_sent_at: null,
+          activation_expires_at: null,
+        },
+      );
+      await asService();
+      await assert.rejects(
+        db.query(
+          "SELECT public.school_activation_request('00000015','other@example.test')",
+        ),
+        /request in progress/,
+      );
+      assert.equal(
+        (
+          await db.query("SELECT public.school_activation_bind($1,$2)", [
+            requested.request_id,
+            user(9),
+          ])
+        ).rows[0].school_activation_bind,
+        true,
+      );
+      await as(null);
+      const accepted = (
         await db.query(
-          "SELECT public.school_auth_lookup('00000015') AS value",
+          "SELECT activation_expires_at,activation_requested_at,activation_password_fingerprint,last_sent_at,operation_id FROM app_private.school_auth_accounts WHERE school_id=$1",
+          [user(15)],
         )
-      ).rows[0].value.retry_after,
-      0,
-    );
-    const resend = (await db.query(
-      "SELECT public.school_activation_request('00000015') AS value",
-    )).rows[0].value;
-    assert.equal(
-      (await db.query("SELECT public.school_activation_cancel($1,$2) AS value", [resend.request_id, resend.operation_id])).rows[0].value,
-      true,
-    );
-    assert.equal(
-      (await db.query("SELECT public.school_auth_lookup('00000015') AS value")).rows[0].value.status,
-      "PENDING_ACTIVATION",
-    );
-    await as(null);
-    const afterFailedResend = (await db.query(
-      "SELECT user_id,activation_request_id,activation_expires_at,activation_password_fingerprint,operation_id FROM app_private.school_auth_accounts WHERE school_id=$1",
-      [user(15)],
-    )).rows[0];
-    assert.equal(afterFailedResend.user_id, user(9));
-    assert.equal(afterFailedResend.activation_request_id, requested.request_id);
-    assert.equal(new Date(afterFailedResend.activation_expires_at).getTime(), new Date(accepted.activation_expires_at).getTime());
-    assert.equal(afterFailedResend.activation_password_fingerprint, accepted.activation_password_fingerprint);
-    assert.equal(afterFailedResend.operation_id, null);
-    await asService();
-    assert.equal((await db.query("SELECT public.school_activation_context($1) AS value", [user(9)])).rows[0].value, null);
-    await assert.rejects(db.query("SELECT public.complete_school_activation($1,$2)", [user(9), requested.request_id]), /Verified email and Auth password required/);
-    await as(null);
-    await db.query("UPDATE auth.users SET email_confirmed_at=now() WHERE id=$1", [user(9)]);
-    // A pre-existing matching profile must not bypass the pending lifecycle.
-    await db.query("INSERT INTO public.profiles(user_id,full_name,role,school_id) VALUES ($1,'Petugas Aktivasi Fiktif','petugas_sekolah',$2)", [user(9), user(15)]);
-    const seeded = (await db.query("INSERT INTO public.alumni(school_id,full_name,graduation_year,major) VALUES ($1,'Alumni Aktivasi Fiktif',2024,'Teknik') RETURNING id", [user(15)])).rows[0].id;
-    await as(9);
-    assert.equal((await db.query("SELECT count(*)::int AS n FROM public.profiles WHERE user_id=$1", [user(9)])).rows[0].n, 1);
-    for (const table of ["schools", "alumni", "placements", "status_histories"])
-      assert.equal((await db.query(`SELECT count(*)::int AS n FROM public.${table}`)).rows[0].n, 0);
-    assert.equal((await db.query("UPDATE public.alumni SET major='Rejected' WHERE id=$1 RETURNING id", [seeded])).rows.length, 0);
-    await assert.rejects(register(seeded, null), /unavailable/);
-    await assert.rejects(db.query("INSERT INTO public.alumni(full_name,graduation_year,major) VALUES ('Rejected',2024,'Teknik')"), /akses sekolah aktif/);
-    await asService();
-    assert.equal((await db.query("SELECT public.school_activation_context($1) AS value", [user(9)])).rows[0].value.npsn, "00000015");
-    const previousRequest = requested.request_id;
-    await as(null);
-    await db.query("UPDATE app_private.school_auth_accounts SET activation_expires_at=now()-interval '1 minute',last_sent_at=now()-interval '2 minutes' WHERE school_id=$1", [user(15)]);
-    await asService();
-    assert.equal((await db.query("SELECT public.school_auth_lookup('00000015') AS value")).rows[0].value.status, "PENDING_ACTIVATION");
-    await assert.rejects(db.query("SELECT public.school_activation_request('00000015','substitute@example.test')"), /Pending email cannot be changed/);
-    requested = (await db.query("SELECT public.school_activation_request('00000015') AS value")).rows[0].value;
-    assert.notEqual(requested.request_id, previousRequest);
-    assert.equal(requested.email, "activation@example.test");
-    await assert.rejects(db.query("SELECT public.complete_school_activation($1,$2)", [user(9), previousRequest]), /Activation unavailable/);
-    await db.query("SELECT public.school_activation_bind($1,$2,$3)", [requested.request_id, requested.operation_id, user(9)]);
-    assert.equal((await db.query("SELECT public.school_activation_context($1) AS value", [user(9)])).rows[0].value.request_id, requested.request_id);
-    await assert.rejects(db.query("SELECT public.complete_school_activation($1,$2)", [user(9), requested.request_id]), /Verified email and Auth password required/);
-    // Auth is simulated here; only Supabase Auth updates this column in deployment.
-    await as(null);
-    await db.query("UPDATE auth.users SET encrypted_password='fictional-new-auth-hash' WHERE id=$1", [user(9)]);
-    await asService();
-    assert.equal((await db.query("SELECT public.complete_school_activation($1,$2) AS completed", [user(9), requested.request_id])).rows[0].completed, true);
-    await as(null);
-    assert.equal((await db.query(
-      "SELECT activation_password_fingerprint FROM app_private.school_auth_accounts WHERE school_id=$1",
-      [user(15)],
-    )).rows[0].activation_password_fingerprint, null);
-    const activationAuditCount = (await db.query(
-      "SELECT count(*)::int AS n FROM public.audit_logs WHERE actor_id=$1 AND entity_id=$2",
-      [user(9), user(15)],
-    )).rows[0].n;
-    await asService();
-    assert.equal((await db.query("SELECT public.complete_school_activation($1,$2) AS completed", [user(9), requested.request_id])).rows[0].completed, true);
-    await as(null);
-    assert.equal((await db.query(
-      "SELECT count(*)::int AS n FROM public.audit_logs WHERE actor_id=$1 AND entity_id=$2",
-      [user(9), user(15)],
-    )).rows[0].n, activationAuditCount);
-    await as(9);
-    assert.deepEqual((await db.query("SELECT id FROM public.schools")).rows, [{ id: user(15) }]);
-    assert.deepEqual((await db.query("SELECT id FROM public.alumni")).rows, [{ id: seeded }]);
-    const placement = await register(seeded, null);
-    assert.equal((await db.query("SELECT count(*)::int AS n FROM public.status_histories")).rows[0].n, 1);
-    await db.query("SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja')", [placement]);
-    await as(4);
-    assert.equal((await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded])).rows.length, 0);
-    await assert.rejects(register(seeded, null), /unavailable/);
-    for (const account of [1, 2]) {
-      await as(account);
-      assert.equal((await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded])).rows.length, 1);
-      assert.equal((await db.query("UPDATE public.alumni SET major='Rejected' WHERE id=$1 RETURNING id", [seeded])).rows.length, 0);
-    }
-    await asService();
-    await assert.rejects(db.query("SELECT public.school_activation_request('00000015','new@example.test')"), /Activation unavailable/);
-    await as(null);
-    await db.query("UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '2 minutes' WHERE school_id=$1", [user(15)]);
-    await asService();
-    assert.equal((await db.query("SELECT public.school_recovery_request('00000015') AS value")).rows[0].value.email, "activation@example.test");
-    await assert.rejects(db.query("SELECT public.school_recovery_request('00000015')"), /wait before resending/);
-    await as(1);
-    await db.query("UPDATE public.profiles SET is_active=false WHERE user_id=$1", [user(9)]);
-    await as(9);
-    assert.equal((await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded])).rows.length, 0);
-    await asService();
-    assert.equal((await db.query("SELECT public.school_auth_lookup('00000015') AS value")).rows[0].value.status, "SUSPENDED");
-    assert.equal((await db.query("SELECT public.school_recovery_request('00000015') AS value")).rows[0].value, null);
-    await as(1);
-    await db.query("UPDATE public.profiles SET is_active=true WHERE user_id=$1", [user(9)]);
-    await as(9);
-    assert.equal((await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded])).rows.length, 1);
+      ).rows[0];
+      assert.equal(accepted.operation_id, null);
+      assert.ok(accepted.last_sent_at);
+      assert.match(accepted.activation_password_fingerprint, /^[a-f0-9]{32}$/);
+      const acceptedTtl =
+        (new Date(accepted.activation_expires_at) -
+          new Date(accepted.activation_requested_at)) /
+        1000;
+      assert.ok(acceptedTtl >= 3599 && acceptedTtl <= 3601);
+      await asService();
+      const initialRetry = (
+        await db.query("SELECT public.school_auth_lookup('00000015') AS value")
+      ).rows[0].value.retry_after;
+      assert.ok(initialRetry > 0 && initialRetry <= 60);
+      const otherSchoolLookup = (
+        await db.query("SELECT public.school_auth_lookup('00000016') AS value")
+      ).rows[0].value;
+      assert.equal(otherSchoolLookup.npsn, "00000016");
+      assert.equal(otherSchoolLookup.retry_after, 0);
+      const otherSchoolRequest = (
+        await db.query(
+          "SELECT public.school_activation_request('00000016','expired@example.test',3600) AS value",
+        )
+      ).rows[0].value;
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_activation_cancel($1,$2) AS value",
+            [otherSchoolRequest.request_id, otherSchoolRequest.operation_id],
+          )
+        ).rows[0].value,
+        true,
+      );
+      await assert.rejects(
+        db.query("SELECT public.school_activation_request('00000015')"),
+        /wait before resending/,
+      );
+      await as(null);
+      await db.query(
+        "UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '45 seconds' WHERE school_id=$1",
+        [user(15)],
+      );
+      await asService();
+      const prematureRetry = (
+        await db.query("SELECT public.school_auth_lookup('00000015') AS value")
+      ).rows[0].value.retry_after;
+      assert.ok(prematureRetry >= 14 && prematureRetry <= 15);
+      await assert.rejects(
+        db.query("SELECT public.school_activation_request('00000015')"),
+        /wait before resending/,
+      );
+      await as(null);
+      await db.query(
+        "UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '61 seconds' WHERE school_id=$1",
+        [user(15)],
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_auth_lookup('00000015') AS value",
+          )
+        ).rows[0].value.retry_after,
+        0,
+      );
+      const resend = (
+        await db.query(
+          "SELECT public.school_activation_request('00000015') AS value",
+        )
+      ).rows[0].value;
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_activation_cancel($1,$2) AS value",
+            [resend.request_id, resend.operation_id],
+          )
+        ).rows[0].value,
+        true,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_auth_lookup('00000015') AS value",
+          )
+        ).rows[0].value.status,
+        "PENDING_ACTIVATION",
+      );
+      await as(null);
+      const afterFailedResend = (
+        await db.query(
+          "SELECT user_id,activation_request_id,activation_expires_at,activation_password_fingerprint,operation_id FROM app_private.school_auth_accounts WHERE school_id=$1",
+          [user(15)],
+        )
+      ).rows[0];
+      assert.equal(afterFailedResend.user_id, user(9));
+      assert.equal(
+        afterFailedResend.activation_request_id,
+        requested.request_id,
+      );
+      assert.equal(
+        new Date(afterFailedResend.activation_expires_at).getTime(),
+        new Date(accepted.activation_expires_at).getTime(),
+      );
+      assert.equal(
+        afterFailedResend.activation_password_fingerprint,
+        accepted.activation_password_fingerprint,
+      );
+      assert.equal(afterFailedResend.operation_id, null);
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_activation_context($1) AS value",
+            [user(9)],
+          )
+        ).rows[0].value,
+        null,
+      );
+      await assert.rejects(
+        db.query("SELECT public.complete_school_activation($1,$2)", [
+          user(9),
+          requested.request_id,
+        ]),
+        /Verified email and Auth password required/,
+      );
+      await as(null);
+      await db.query(
+        "UPDATE auth.users SET email_confirmed_at=now() WHERE id=$1",
+        [user(9)],
+      );
+      // A pre-existing matching profile must not bypass the pending lifecycle.
+      await db.query(
+        "INSERT INTO public.profiles(user_id,full_name,role,school_id) VALUES ($1,'Petugas Aktivasi Fiktif','petugas_sekolah',$2)",
+        [user(9), user(15)],
+      );
+      const seeded = (
+        await db.query(
+          "INSERT INTO public.alumni(school_id,full_name,graduation_year,major) VALUES ($1,'Alumni Aktivasi Fiktif',2024,'Teknik') RETURNING id",
+          [user(15)],
+        )
+      ).rows[0].id;
+      await as(9);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.profiles WHERE user_id=$1",
+            [user(9)],
+          )
+        ).rows[0].n,
+        1,
+      );
+      for (const table of [
+        "schools",
+        "alumni",
+        "placements",
+        "status_histories",
+      ])
+        assert.equal(
+          (await db.query(`SELECT count(*)::int AS n FROM public.${table}`))
+            .rows[0].n,
+          0,
+        );
+      assert.equal(
+        (
+          await db.query(
+            "UPDATE public.alumni SET major='Rejected' WHERE id=$1 RETURNING id",
+            [seeded],
+          )
+        ).rows.length,
+        0,
+      );
+      await assert.rejects(register(seeded, null), /unavailable/);
+      await assert.rejects(
+        db.query(
+          "INSERT INTO public.alumni(full_name,graduation_year,major) VALUES ('Rejected',2024,'Teknik')",
+        ),
+        /akses sekolah aktif/,
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_activation_context($1) AS value",
+            [user(9)],
+          )
+        ).rows[0].value.npsn,
+        "00000015",
+      );
+      const previousRequest = requested.request_id;
+      await as(null);
+      await db.query(
+        "UPDATE app_private.school_auth_accounts SET activation_expires_at=now()-interval '1 minute',last_sent_at=now()-interval '2 minutes' WHERE school_id=$1",
+        [user(15)],
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_auth_lookup('00000015') AS value",
+          )
+        ).rows[0].value.status,
+        "PENDING_ACTIVATION",
+      );
+      await assert.rejects(
+        db.query(
+          "SELECT public.school_activation_request('00000015','substitute@example.test')",
+        ),
+        /Pending email cannot be changed/,
+      );
+      requested = (
+        await db.query(
+          "SELECT public.school_activation_request('00000015') AS value",
+        )
+      ).rows[0].value;
+      assert.notEqual(requested.request_id, previousRequest);
+      assert.equal(requested.email, "activation@example.test");
+      await assert.rejects(
+        db.query("SELECT public.complete_school_activation($1,$2)", [
+          user(9),
+          previousRequest,
+        ]),
+        /Activation unavailable/,
+      );
+      await db.query("SELECT public.school_activation_bind($1,$2,$3)", [
+        requested.request_id,
+        requested.operation_id,
+        user(9),
+      ]);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_activation_context($1) AS value",
+            [user(9)],
+          )
+        ).rows[0].value.request_id,
+        requested.request_id,
+      );
+      await assert.rejects(
+        db.query("SELECT public.complete_school_activation($1,$2)", [
+          user(9),
+          requested.request_id,
+        ]),
+        /Verified email and Auth password required/,
+      );
+      // Auth is simulated here; only Supabase Auth updates this column in deployment.
+      await as(null);
+      await db.query(
+        "UPDATE auth.users SET encrypted_password='fictional-new-auth-hash' WHERE id=$1",
+        [user(9)],
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.complete_school_activation($1,$2) AS completed",
+            [user(9), requested.request_id],
+          )
+        ).rows[0].completed,
+        true,
+      );
+      await as(null);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT activation_password_fingerprint FROM app_private.school_auth_accounts WHERE school_id=$1",
+            [user(15)],
+          )
+        ).rows[0].activation_password_fingerprint,
+        null,
+      );
+      const activationAuditCount = (
+        await db.query(
+          "SELECT count(*)::int AS n FROM public.audit_logs WHERE actor_id=$1 AND entity_id=$2",
+          [user(9), user(15)],
+        )
+      ).rows[0].n;
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.complete_school_activation($1,$2) AS completed",
+            [user(9), requested.request_id],
+          )
+        ).rows[0].completed,
+        true,
+      );
+      await as(null);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.audit_logs WHERE actor_id=$1 AND entity_id=$2",
+            [user(9), user(15)],
+          )
+        ).rows[0].n,
+        activationAuditCount,
+      );
+      await as(9);
+      assert.deepEqual((await db.query("SELECT id FROM public.schools")).rows, [
+        { id: user(15) },
+      ]);
+      assert.deepEqual((await db.query("SELECT id FROM public.alumni")).rows, [
+        { id: seeded },
+      ]);
+      const placement = await register(seeded, null);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.status_histories",
+          )
+        ).rows[0].n,
+        1,
+      );
+      await db.query(
+        "SELECT public.change_placement_status($1,'persiapan_berangkat','aktif_bekerja',NULL,'2020-01-01')",
+        [placement],
+      );
+      await as(4);
+      assert.equal(
+        (await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded]))
+          .rows.length,
+        0,
+      );
+      await assert.rejects(register(seeded, null), /unavailable/);
+      for (const account of [1, 2]) {
+        await as(account);
+        assert.equal(
+          (await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded]))
+            .rows.length,
+          1,
+        );
+        assert.equal(
+          (
+            await db.query(
+              "UPDATE public.alumni SET major='Rejected' WHERE id=$1 RETURNING id",
+              [seeded],
+            )
+          ).rows.length,
+          0,
+        );
+      }
+      await asService();
+      await assert.rejects(
+        db.query(
+          "SELECT public.school_activation_request('00000015','new@example.test')",
+        ),
+        /Activation unavailable/,
+      );
+      await as(null);
+      await db.query(
+        "UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '2 minutes' WHERE school_id=$1",
+        [user(15)],
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_recovery_request('00000015') AS value",
+          )
+        ).rows[0].value.email,
+        "activation@example.test",
+      );
+      await assert.rejects(
+        db.query("SELECT public.school_recovery_request('00000015')"),
+        /wait before resending/,
+      );
+      await as(1);
+      await db.query(
+        "UPDATE public.profiles SET is_active=false WHERE user_id=$1",
+        [user(9)],
+      );
+      await as(9);
+      assert.equal(
+        (await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded]))
+          .rows.length,
+        0,
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_auth_lookup('00000015') AS value",
+          )
+        ).rows[0].value.status,
+        "SUSPENDED",
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_recovery_request('00000015') AS value",
+          )
+        ).rows[0].value,
+        null,
+      );
+      await as(1);
+      await db.query(
+        "UPDATE public.profiles SET is_active=true WHERE user_id=$1",
+        [user(9)],
+      );
+      await as(9);
+      assert.equal(
+        (await db.query("SELECT id FROM public.alumni WHERE id=$1", [seeded]))
+          .rows.length,
+        1,
+      );
 
-    await asService();
-    let expired = (await db.query("SELECT public.school_activation_request('00000016','expired@example.test') AS value")).rows[0].value;
-    assert.equal((await db.query("SELECT public.school_activation_cancel($1,$2) AS value", [expired.request_id, expired.operation_id])).rows[0].value, true);
-    assert.equal((await db.query("SELECT public.school_auth_lookup('00000016') AS value")).rows[0].value.status, "UNCLAIMED");
-    await as(null);
-    const cancelled = (await db.query(
-      "SELECT email,user_id,activation_request_id,activation_password_fingerprint,last_sent_at FROM app_private.school_auth_accounts WHERE school_id=$1",
-      [user(16)],
-    )).rows[0];
-    assert.deepEqual(cancelled, {
-      email: null, user_id: null, activation_request_id: null,
-      activation_password_fingerprint: null, last_sent_at: null,
-    });
-    await asService();
-    expired = (await db.query("SELECT public.school_activation_request('00000016','expired@example.test') AS value")).rows[0].value;
-    await db.query("SELECT public.school_activation_bind($1,$2,$3)", [expired.request_id, expired.operation_id, user(10)]);
-    await as(null);
-    await db.query("UPDATE app_private.school_auth_accounts SET activation_expires_at=now()-interval '1 minute',last_sent_at=now()-interval '2 minutes' WHERE school_id=$1", [user(16)]);
-    await asService();
-    assert.equal((await db.query("SELECT public.school_auth_lookup('00000016') AS value")).rows[0].value.status, "UNCLAIMED");
-    const retry = (await db.query("SELECT public.school_activation_request('00000016','corrected@example.test') AS value")).rows[0].value;
-    assert.notEqual(expired.request_id, retry.request_id);
-    await assert.rejects(db.query("SELECT public.complete_school_activation($1,$2)", [user(10), expired.request_id]), /Activation unavailable/);
-    await assert.rejects(db.query("SELECT public.school_activation_bind($1,$2,$3)", [retry.request_id, retry.operation_id, user(10)]), /identity mismatch/);
-    await as(null);
-    assert.equal((await db.query("SELECT count(*)::int AS n FROM auth.users WHERE id=$1", [user(10)])).rows[0].n, 1);
-    assert.equal((await db.query("SELECT count(*)::int AS n FROM public.profiles WHERE user_id=$1", [user(9)])).rows[0].n, 1);
-    // Complete a fresh invitation with no pre-existing application profile.
-    await db.query("INSERT INTO auth.users(id,email,encrypted_password,email_confirmed_at) VALUES ($1,'corrected@example.test','fictional-auth-hash',now())", [user(11)]);
-    await asService();
-    await db.query("SELECT public.school_activation_bind($1,$2,$3)", [retry.request_id, retry.operation_id, user(11)]);
-    await assert.rejects(
-      db.query("SELECT public.complete_school_activation($1,$2)", [user(11), retry.request_id]),
-      /Password update for this activation is required/,
-    );
-    await as(null);
-    await db.query("UPDATE auth.users SET encrypted_password='fictional-replaced-auth-hash' WHERE id=$1", [user(11)]);
-    await asService();
-    await db.query("SELECT public.complete_school_activation($1,$2)", [user(11), retry.request_id]);
-    await as(null);
-    assert.deepEqual((await db.query("SELECT school_id,role,is_active,must_change_password FROM public.profiles WHERE user_id=$1", [user(11)])).rows,
-      [{ school_id: user(16), role: "petugas_sekolah", is_active: true, must_change_password: false }]);
-    assert.equal((await db.query("SELECT count(*)::int AS n FROM public.audit_logs WHERE actor_id=$1 AND entity_id=$2", [user(11), user(16)])).rows[0].n, 1);
-  });
+      await asService();
+      let expired = (
+        await db.query(
+          "SELECT public.school_activation_request('00000016','expired@example.test') AS value",
+        )
+      ).rows[0].value;
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_activation_cancel($1,$2) AS value",
+            [expired.request_id, expired.operation_id],
+          )
+        ).rows[0].value,
+        true,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_auth_lookup('00000016') AS value",
+          )
+        ).rows[0].value.status,
+        "UNCLAIMED",
+      );
+      await as(null);
+      const cancelled = (
+        await db.query(
+          "SELECT email,user_id,activation_request_id,activation_password_fingerprint,last_sent_at FROM app_private.school_auth_accounts WHERE school_id=$1",
+          [user(16)],
+        )
+      ).rows[0];
+      assert.deepEqual(cancelled, {
+        email: null,
+        user_id: null,
+        activation_request_id: null,
+        activation_password_fingerprint: null,
+        last_sent_at: null,
+      });
+      await asService();
+      expired = (
+        await db.query(
+          "SELECT public.school_activation_request('00000016','expired@example.test') AS value",
+        )
+      ).rows[0].value;
+      await db.query("SELECT public.school_activation_bind($1,$2,$3)", [
+        expired.request_id,
+        expired.operation_id,
+        user(10),
+      ]);
+      await as(null);
+      await db.query(
+        "UPDATE app_private.school_auth_accounts SET activation_expires_at=now()-interval '1 minute',last_sent_at=now()-interval '2 minutes' WHERE school_id=$1",
+        [user(16)],
+      );
+      await asService();
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_auth_lookup('00000016') AS value",
+          )
+        ).rows[0].value.status,
+        "UNCLAIMED",
+      );
+      const retry = (
+        await db.query(
+          "SELECT public.school_activation_request('00000016','corrected@example.test') AS value",
+        )
+      ).rows[0].value;
+      assert.notEqual(expired.request_id, retry.request_id);
+      await assert.rejects(
+        db.query("SELECT public.complete_school_activation($1,$2)", [
+          user(10),
+          expired.request_id,
+        ]),
+        /Activation unavailable/,
+      );
+      await assert.rejects(
+        db.query("SELECT public.school_activation_bind($1,$2,$3)", [
+          retry.request_id,
+          retry.operation_id,
+          user(10),
+        ]),
+        /identity mismatch/,
+      );
+      await as(null);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM auth.users WHERE id=$1",
+            [user(10)],
+          )
+        ).rows[0].n,
+        1,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.profiles WHERE user_id=$1",
+            [user(9)],
+          )
+        ).rows[0].n,
+        1,
+      );
+      // Complete a fresh invitation with no pre-existing application profile.
+      await db.query(
+        "INSERT INTO auth.users(id,email,encrypted_password,email_confirmed_at) VALUES ($1,'corrected@example.test','fictional-auth-hash',now())",
+        [user(11)],
+      );
+      await asService();
+      await db.query("SELECT public.school_activation_bind($1,$2,$3)", [
+        retry.request_id,
+        retry.operation_id,
+        user(11),
+      ]);
+      await assert.rejects(
+        db.query("SELECT public.complete_school_activation($1,$2)", [
+          user(11),
+          retry.request_id,
+        ]),
+        /Password update for this activation is required/,
+      );
+      await as(null);
+      await db.query(
+        "UPDATE auth.users SET encrypted_password='fictional-replaced-auth-hash' WHERE id=$1",
+        [user(11)],
+      );
+      await asService();
+      await db.query("SELECT public.complete_school_activation($1,$2)", [
+        user(11),
+        retry.request_id,
+      ]);
+      await as(null);
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT school_id,role,is_active,must_change_password FROM public.profiles WHERE user_id=$1",
+            [user(11)],
+          )
+        ).rows,
+        [
+          {
+            school_id: user(16),
+            role: "petugas_sekolah",
+            is_active: true,
+            must_change_password: false,
+          },
+        ],
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.audit_logs WHERE actor_id=$1 AND entity_id=$2",
+            [user(11), user(16)],
+          )
+        ).rows[0].n,
+        1,
+      );
+    },
+  );
   console.log(
     `Completed ${assertions} SQL/RLS scenario groups. This is not a hosted Supabase or multi-connection concurrency test.`,
   );

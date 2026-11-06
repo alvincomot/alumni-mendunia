@@ -401,6 +401,8 @@ test("login UI defaults to School mode and keeps both modes accessible", () => {
   assert.match(source, /ArrowRight/);
   assert.match(source, /<SchoolLoginForm/);
   assert.match(source, /href="\/auth\/forgot-password"/);
+  assert.match(source, /aria-invalid=\{Boolean\(error\)\}/);
+  assert.doesNotMatch(source, /saria-invalid/);
   assert.match(source, /loginWithPassword\(parsed\.data\)/);
   assert.doesNotMatch(source, /createClient/);
   assert.doesNotMatch(source, /signInWithPassword/);

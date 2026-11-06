@@ -149,7 +149,11 @@ function StatusActionContent({
       {target && (
         <Button
           type="button"
-          variant={target === "batal_berangkat" ? "destructive" : "default"}
+          variant={
+            target === "batal_berangkat" || target === "selesai_kontrak"
+              ? "destructive"
+              : "default"
+          }
           className="min-h-11"
           onClick={show}
           aria-label={`${actionLabels[target]}: ${alumniName}`}
@@ -222,14 +226,19 @@ function StatusActionContent({
               <div className="space-y-2">
                 <Label htmlFor={`${id}-date`}>
                   {dateField === "actual_departure"
-                    ? "Tanggal keberangkatan aktual"
-                    : "Tanggal selesai kontrak"}{" "}
-                  (opsional)
+                    ? "Tanggal keberangkatan aktual (wajib)"
+                    : "Tanggal selesai kontrak (wajib)"}
                 </Label>
                 <Input
                   id={`${id}-date`}
                   type="date"
-                  {...register(dateField)}
+                  {...register(dateField, {
+                    required:
+                      dateField === "actual_departure"
+                        ? "Tanggal keberangkatan wajib diisi."
+                        : "Tanggal selesai kontrak wajib diisi.",
+                  })}
+                  required
                   className="min-h-11"
                   aria-invalid={!!errors[dateField]}
                   aria-describedby={
@@ -287,7 +296,10 @@ function StatusActionContent({
               <Button
                 type="submit"
                 variant={
-                  snapshot?.to === "batal_berangkat" ? "destructive" : "default"
+                  snapshot?.to === "batal_berangkat" ||
+                  snapshot?.to === "selesai_kontrak"
+                    ? "destructive"
+                    : "default"
                 }
                 disabled={pending}
                 className="min-h-11"

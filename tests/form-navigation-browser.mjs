@@ -91,7 +91,7 @@ export function state(){return globalThis.__formFixture??=(function(){const scho
 export async function operation(name){const s=state();s.calls[name]=(s.calls[name]??0)+1;if(s.hold)await new Promise(resolve=>{s.release=resolve});return s.mode}
 export const db={from(table){let rows=[...(state()[table]??[])],start=0,end=999;const query={select(){return query},order(){return query},or(){return query},range(a,b){start=a;end=b;return query},eq(k,v){rows=rows.filter(r=>r[k]===v);return query},in(k,vs){rows=rows.filter(r=>vs.includes(r[k]));return query},async maybeSingle(){return {data:rows[0]??null,error:null}},then(resolve){return Promise.resolve({data:rows.slice(start,end+1),count:rows.length,error:null}).then(resolve)}};return query}};
 export async function access(){await connection();return {allowed:true,canWrite:true,canManage:true,role:'admin_dinas',userId:id(10),schoolId:id(1),schoolName:state().schools[0].name,fullName:'Petugas Fiktif',supabase:db}}
-export function placement(alumniId,input){return {id:id(state().next++),alumni_id:alumniId,is_current:true,created_at:'2026-11-03T00:00:00Z',company_name:null,work_sector:null,planned_departure:null,actual_departure:null,employment_start:null,contract_end_date:null,...input}}
+export function placement(alumniId,input){return {id:id(state().next++),alumni_id:alumniId,is_current:true,created_at:'2026-11-03T00:00:00Z',placement_secured:null,placement_provider_name:null,company_name:null,work_sector:null,planned_departure:null,actual_departure:null,employment_start:null,contract_end_date:null,...input}}
 `,
   );
   write(
@@ -138,7 +138,7 @@ export async function registerPlacement(alumniId,expected,input){if(await operat
   );
   write(
     "app/dashboard/alumni/status-actions.ts",
-    `"use server";import {state,operation} from '@/lib/fixture';import {revalidatePath} from 'next/cache';export async function changePlacementStatus(input){if(await operation('status')==='failure')return {success:false,message:'Status fiktif gagal.'};const p=state().placements.find(p=>p.id===input.placement_id);p.status=input.new_status;revalidatePath('/dashboard/alumni');revalidatePath('/dashboard/alumni/'+p.alumni_id);return {success:true,message:'Status alumni berhasil diperbarui.'}}`,
+    `"use server";import {state,operation} from '@/lib/fixture';import {revalidatePath} from 'next/cache';export async function changePlacementStatus(input){if(await operation('status')==='failure')return {success:false,message:'Status fiktif gagal.'};const p=state().placements.find(p=>p.id===input.placement_id);p.status=input.new_status;if(input.new_status==='aktif_bekerja'){p.placement_secured=true;p.actual_departure=input.actual_departure}if(input.new_status==='selesai_kontrak')p.contract_end_date=input.contract_end_date;revalidatePath('/dashboard/alumni');revalidatePath('/dashboard/alumni/'+p.alumni_id);return {success:true,message:'Status alumni berhasil diperbarui.'}}`,
   );
   write(
     "app/dashboard/schools/actions.ts",
@@ -353,7 +353,35 @@ try {
       await identity(name);
       await step2();
       await country();
-      await input("Perusahaan").fill("Perusahaan Fiktif");
+      const secured = input("Sudah ada penempatan");
+      assert.equal(await secured.isChecked(), false);
+      assert.equal(
+        await input("LPK / Sending Organization / P3MI (Penyalur)").count(),
+        0,
+      );
+      await secured.check();
+      await input("LPK / Sending Organization / P3MI (Penyalur)").fill(
+        "LPK Fiktif",
+      );
+      await input("Sektor pekerjaan").fill("Manufaktur Fiktif");
+      await input("Rencana keberangkatan").fill("2027-01-15");
+      await secured.uncheck();
+      assert.equal(
+        await input("LPK / Sending Organization / P3MI (Penyalur)").count(),
+        0,
+      );
+      await secured.check();
+      assert.equal(
+        await input(
+          "LPK / Sending Organization / P3MI (Penyalur)",
+        ).inputValue(),
+        "",
+      );
+      assert.equal(await input("Sektor pekerjaan").inputValue(), "");
+      assert.equal(await input("Rencana keberangkatan").inputValue(), "");
+      await input("LPK / Sending Organization / P3MI (Penyalur)").fill(
+        "LPK Fiktif",
+      );
       await input("Sektor pekerjaan").fill("Manufaktur Fiktif");
       await input("Rencana keberangkatan").fill("2027-01-15");
       await page
@@ -361,7 +389,12 @@ try {
         .click();
       assert.equal(await input("Nama lengkap (wajib)").inputValue(), name);
       await step2();
-      assert.equal(await input("Perusahaan").inputValue(), "Perusahaan Fiktif");
+      assert.equal(
+        await input(
+          "LPK / Sending Organization / P3MI (Penyalur)",
+        ).inputValue(),
+        "LPK Fiktif",
+      );
       await control("?mode=failure");
       await page
         .getByRole("button", { name: "Simpan Alumni", exact: true })
@@ -369,7 +402,12 @@ try {
       await main
         .getByText("Penyimpanan fiktif gagal.", { exact: true })
         .waitFor();
-      assert.equal(await input("Perusahaan").inputValue(), "Perusahaan Fiktif");
+      assert.equal(
+        await input(
+          "LPK / Sending Organization / P3MI (Penyalur)",
+        ).inputValue(),
+        "LPK Fiktif",
+      );
       await control("?mode=success&hold=true");
       const before = (await control()).calls.registration;
       await page
@@ -418,9 +456,13 @@ try {
       );
       await identity("Baru Fiktif");
       await step2();
-      assert.equal(await input("Perusahaan").inputValue(), "");
-      assert.equal(await input("Sektor pekerjaan").inputValue(), "");
-      assert.equal(await input("Rencana keberangkatan").inputValue(), "");
+      assert.equal(await input("Sudah ada penempatan").isChecked(), false);
+      assert.equal(
+        await input("LPK / Sending Organization / P3MI (Penyalur)").count(),
+        0,
+      );
+      assert.equal(await input("Sektor pekerjaan").count(), 0);
+      assert.equal(await input("Rencana keberangkatan").count(), 0);
       assert.equal(
         await input("Status awal (wajib)").inputValue(),
         "persiapan_berangkat",
@@ -437,7 +479,10 @@ try {
       await page
         .getByText("Pilih negara tujuan yang valid", { exact: true })
         .waitFor();
-      assert.equal(await input("Perusahaan").inputValue(), "");
+      assert.equal(
+        await input("LPK / Sending Organization / P3MI (Penyalur)").count(),
+        0,
+      );
       await list();
       await page.goBack();
       await firstStep();
@@ -659,9 +704,22 @@ try {
     const row = main.getByRole("row").filter({ hasText: "Alumni Fiktif B" });
     await row.getByRole("button", { name: /Konfirmasi Berangkat/ }).click();
     const dialog = page.getByRole("dialog");
+    const departure = dialog.getByLabel(
+      "Tanggal keberangkatan aktual (wajib)",
+      { exact: true },
+    );
     await dialog
       .getByLabel("Catatan (opsional, maksimal 500 karakter)")
       .fill("Catatan Fiktif");
+    const statusCallsBefore = (await control()).calls.status ?? 0;
+    await dialog
+      .getByRole("button", { name: "Ya, konfirmasi", exact: true })
+      .click();
+    await dialog
+      .getByText("Tanggal keberangkatan wajib diisi.", { exact: true })
+      .waitFor();
+    assert.equal((await control()).calls.status ?? 0, statusCallsBefore);
+    await departure.fill("2020-01-01");
     await control("?mode=failure");
     await dialog
       .getByRole("button", { name: "Ya, konfirmasi", exact: true })
@@ -673,12 +731,18 @@ try {
         .inputValue(),
       "Catatan Fiktif",
     );
+    assert.equal(await departure.inputValue(), "2020-01-01");
     await control("?mode=success");
     await dialog
       .getByRole("button", { name: "Ya, konfirmasi", exact: true })
       .click();
     await dialog.waitFor({ state: "hidden" });
     await row.getByText("Aktif bekerja", { exact: true }).waitFor();
+    const savedPlacement = (await control()).placements.find(
+      (placement) => placement.alumni_id.endsWith("000000000021"),
+    );
+    assert.equal(savedPlacement.status, "aktif_bekerja");
+    assert.equal(savedPlacement.actual_departure, "2020-01-01");
     assert.equal(
       await page
         .getByText("Status alumni berhasil diperbarui.", { exact: true })
@@ -686,8 +750,35 @@ try {
       1,
     );
     await dismiss();
+    await openDetail("Alumni Fiktif B");
+    await page
+      .getByRole("button", { name: /Selesaikan Kontrak/ })
+      .click();
+    const contractEnd = dialog.getByLabel(
+      "Tanggal selesai kontrak (wajib)",
+      { exact: true },
+    );
+    const contractCallsBefore = (await control()).calls.status ?? 0;
+    await dialog
+      .getByRole("button", { name: "Ya, konfirmasi", exact: true })
+      .click();
+    await dialog
+      .getByText("Tanggal selesai kontrak wajib diisi.", { exact: true })
+      .waitFor();
+    assert.equal((await control()).calls.status ?? 0, contractCallsBefore);
+    await contractEnd.fill("2020-01-02");
+    await dialog
+      .getByRole("button", { name: "Ya, konfirmasi", exact: true })
+      .click();
+    await dialog.waitFor({ state: "hidden" });
+    await main.getByText("Selesai kontrak", { exact: true }).first().waitFor();
+    const completedPlacement = (await control()).placements.find(
+      (placement) => placement.alumni_id.endsWith("000000000021"),
+    );
+    assert.equal(completedPlacement.status, "selesai_kontrak");
+    assert.equal(completedPlacement.contract_end_date, "2020-01-02");
     console.log(
-      "PASS placements/status: list destination, retained failure input, confirmed dialog closes and emits one toast",
+      "PASS placements/status: required departure and contract-end dates block empty submits, valid dates persist, failure input is retained, and success closes with one toast",
     );
 
     await page
