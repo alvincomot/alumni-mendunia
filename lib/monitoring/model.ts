@@ -23,6 +23,8 @@ export const monitoringRowSchema = z.object({
           "batal_berangkat",
         ]),
         destination_country: z.string(),
+        placement_secured: z.boolean().nullable(),
+        placement_provider_name: z.string().nullable(),
         work_sector: z.string().nullable(),
         company_name: z.string().nullable(),
         planned_departure: z.string().nullable(),
@@ -35,11 +37,36 @@ export const monitoringRowSchema = z.object({
     .max(1),
 });
 export type MonitoringRow = z.infer<typeof monitoringRowSchema>;
+
+export const legacyMonitoringRowSchema = monitoringRowSchema.extend({
+  placements: z
+    .array(
+      monitoringRowSchema.shape.placements.element.omit({
+        placement_secured: true,
+        placement_provider_name: true,
+      }),
+    )
+    .max(1),
+});
 export type SearchParams = Record<string, string | string[] | undefined>;
 export type MonitoringFilters = Record<
   "q" | "school" | "year" | "country" | "status" | "sector" | "sort",
   string
 >;
+
+export function placementStateLabel(
+  placement: MonitoringRow["placements"][number] | undefined,
+) {
+  if (placement?.placement_secured === true) return "Sudah ada penempatan";
+  if (placement?.placement_secured === false) return "Belum ada penempatan";
+  return "Status penempatan belum tercatat";
+}
+
+export function securedPlacementRows(rows: MonitoringRow[]) {
+  return rows.filter(
+    (row) => row.placements[0]?.placement_secured === true,
+  );
+}
 
 export function parseFilters(params: SearchParams): MonitoringFilters {
   const text = (key: string) =>
@@ -74,7 +101,7 @@ export function filterRows(rows: MonitoringRow[], filter: MonitoringFilters) {
         (!filter.sector || current?.work_sector === filter.sector) &&
         (!filter.status ||
           (filter.status === "unplaced"
-            ? !current
+            ? current?.placement_secured !== true
             : current?.status === filter.status))
       );
     })
@@ -100,7 +127,7 @@ export function summarize(rows: MonitoringRow[]) {
   for (const row of rows) {
     const current = row.placements[0];
     if (current) statuses[current.status]++;
-    else unplaced++;
+    if (current?.placement_secured !== true) unplaced++;
   }
   return { total: rows.length, unplaced, statuses };
 }
@@ -142,8 +169,10 @@ export const reportHeaders = [
   "Jurusan",
   "Negara tujuan",
   "Status penempatan",
+  "Status perolehan penempatan",
+  "LPK / Sending Organization / P3MI (Penyalur)",
   "Sektor pekerjaan",
-  "Perusahaan",
+  "Perusahaan/pemberi kerja (data historis)",
   "Rencana berangkat",
   "Keberangkatan aktual",
   "Mulai bekerja",
@@ -157,7 +186,9 @@ export function reportValues(row: MonitoringRow): string[] {
     String(row.graduation_year),
     row.major,
     p?.destination_country ? formatCountryName(p.destination_country) : "",
-    p ? statusLabels[p.status] : "Belum ada penempatan",
+    p ? statusLabels[p.status] : "Belum dicatat",
+    placementStateLabel(p),
+    p?.placement_provider_name ?? "",
     p?.work_sector ?? "",
     p?.company_name ?? "",
     p?.planned_departure ?? "",
