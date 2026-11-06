@@ -182,7 +182,7 @@ Profiles are changed through the administrator's ordinary SSR client, not throug
 
 ## Monitoring/reporting semantics and limits
 
-- One row per authorized alumnus. Only `is_current = true` placements contribute country, sector, and status. Alumni without a placement remain visible and count under **Belum ada penempatan**.
+- One row per authorized alumnus. Only `is_current = true` placements contribute country, sector, and status. Dashboard, report summaries, and the **Belum ada penempatan** filter combine explicit `false`, missing current rows, and legacy `NULL` state into one operational queue. The database retains `NULL`, and detailed records/exports may still expose that historical uncertainty rather than rewriting it.
 - Completed and canceled placements remain current until replaced. Historical details/status histories remain available on the alumni detail page.
 - Server-side filters are shared by alumni lists, dashboards, and CSV export. Staff scope is taken from their verified profile, never the submitted school filter. Dinas access stays read-only for alumni/placements.
 - School totals on the dashboard are organization-wide and explicitly labeled as independent of alumni filters. Recent activity shows the eight latest history entries on current placements in the selected scope.
