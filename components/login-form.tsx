@@ -166,7 +166,7 @@ function LoginFormContent({
                 setError(null);
               }}
               placeholder="nama@instansi.com"
-              saria-invalid={Boolean(error)}
+              aria-invalid={Boolean(error)}
               aria-describedby={error ? "dinas-login-error" : undefined}
             />
           </div>
