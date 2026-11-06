@@ -11,7 +11,7 @@ Verifikasi live ditangani pengguna sesuai konfirmasi. Tidak ada login, penulisan
 - HTTP production server lokal: daftar/tambah/detail alumni dan sekolah tanpa sesi menghasilkan 307 ke login; login 200.
 - `git diff --check`: PASS untuk tracked files. Migration/RLS tidak berubah.
 
-Pengujian Node menjalankan modul produksi dengan mock Supabase/Next. Cakupan: matriks 16 kombinasi status (hanya 3 diizinkan), profil/sekolah aktif, kepemilikan, penempatan historis, tanggal opsional/urutan/future, panjang catatan, keenam argumen RPC, respons void, status stale sebelum dan saat RPC, pemanggilan ulang/bersamaan, error aman, serta pemisahan riwayat pada detail. Mock tidak membuktikan row lock, trigger, atau RLS database live.
+Pengujian Node menjalankan modul produksi dengan mock Supabase/Next. Cakupan: matriks 16 kombinasi status (hanya 3 diizinkan), tanggal keberangkatan wajib untuk konfirmasi berangkat, profil/sekolah aktif, kepemilikan, penempatan historis, validitas dan urutan tanggal, panjang catatan, keenam argumen RPC, respons void, status stale sebelum dan saat RPC, pemanggilan ulang/bersamaan, error aman, serta pemisahan riwayat pada detail. Mock tidak membuktikan row lock, trigger, atau RLS database live.
 
 ## Pengujian browser yang benar-benar dijalankan
 
@@ -20,7 +20,7 @@ Chrome headless, komponen `StatusAction`/`StatusHistory` asli dan CSS build, tet
 1. Enter membuka dialog; fokus awal pada Kembali; Escape menutup tanpa perubahan.
 2. Lebar 320, 375, 768, 1280 px: dialog tidak overflow; Tab tetap di dalam dialog.
 3. Kontras teks dialog/riwayat yang diukur minimal 5,82:1.
-4. Tanggal berangkat masa depan ditolak; tanggal kosong diterima; catatan terkirim; dua submit selama pending hanya memanggil action sekali; pesan sukses bertahan setelah refresh/tutup.
+4. Tanggal berangkat kosong dan masa depan ditolak; tanggal valid serta catatan terkirim; dua submit selama pending hanya memanggil action sekali; pesan sukses bertahan setelah refresh/tutup.
 5. Dialog selesai kontrak dan batal berangkat mengirim target yang benar; status terminal tidak menampilkan aksi.
 6. Respons stale menampilkan error, meminta refresh, dan menghilangkan tombol submit ulang.
 7. Jika parent mengganti placement ID saat dialog terbuka, submit tetap memakai ID yang semula dikonfirmasi, bukan penempatan pengganti.
@@ -36,8 +36,8 @@ Artefak sesi lokal (sementara, tidak di-stage): `C:/Users/alvin/AppData/Local/Te
 Gunakan akun fiktif Admin Dinas, Viewer Dinas, dan petugas dua sekolah aktif.
 
 1. Verifikasi registrasi alumni dan penempatan awal Phase 1; jika gagal, catat pesan dan langkah reproduksi sebelum melanjutkan transisi.
-2. Petugas: konfirmasi berangkat dari daftar, dengan/tanpa tanggal dan catatan. Pastikan status aktif, tanggal benar, dan hanya satu history baru tercatat otomatis.
-3. Pada detail, selesaikan kontrak; tolak tanggal sebelum keberangkatan/mulai bekerja dan tanggal masa depan. Status terminal tetap `is_current = true`.
+2. Petugas: konfirmasi berangkat dari daftar tanpa tanggal harus ditolak dengan pesan inline. Isi tanggal valid dan catatan, lalu pastikan status aktif, tanggal tersimpan, dan hanya satu history baru tercatat otomatis.
+3. Pada detail, selesaikan kontrak; tanggal selesai wajib diisi. Tolak tanggal kosong, tanggal sebelum keberangkatan/mulai bekerja, dan tanggal masa depan. Status terminal tetap `is_current = true`.
 4. Batalkan penempatan persiapan dari detail. Pastikan alumni, placement, dan riwayat tidak dihapus. Tanggal keberangkatan/kontrak tidak dikirim untuk pembatalan.
 5. Buka dua tab untuk placement sama; ubah dari tab pertama, lalu konfirmasi dari tab lama. Harus ada pesan konflik/refresh, bukan overwrite.
 6. Uji klik ganda dan respons terputus sesudah commit. Periksa status/history sebelum mencoba lagi; tidak boleh ada history duplikat untuk satu transisi.
