@@ -11,6 +11,16 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Alumni Mendunia SMK",
   description: "Sistem pendataan dan monitoring alumni SMK DKI Jakarta",
+  icons: {
+    icon: [
+      {
+        url: "/images/smk-bisa-hebat-icon.webp",
+        type: "image/webp",
+        sizes: "256x256",
+      },
+    ],
+    shortcut: "/images/smk-bisa-hebat-icon.webp",
+  },
 };
 
 const inter = Inter({
