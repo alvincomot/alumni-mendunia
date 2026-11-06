@@ -18,6 +18,11 @@ export type DashboardIconName =
   | "cancel"
   | "clock"
   | "calendar"
+  | "arrowLeft"
+  | "plus"
+  | "edit"
+  | "book"
+  | "flag"
   | "eye"
   | "eyeOff";
 
@@ -118,6 +123,26 @@ export function DashboardIcon({
       <>
         <rect x="3" y="5" width="18" height="16" rx="2" />
         <path d="M8 3v4m8-4v4M3 10h18" />
+      </>
+    ),
+    arrowLeft: <path d="m15 18-6-6 6-6M9 12h11" />,
+    plus: <path d="M12 5v14M5 12h14" />,
+    edit: (
+      <>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5Z" />
+        <path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5Z" />
+      </>
+    ),
+    flag: (
+      <>
+        <path d="M5 21V4" />
+        <path d="M5 5h10l-1.5 3L15 11H5" />
       </>
     ),
     eye: (
