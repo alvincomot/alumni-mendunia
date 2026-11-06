@@ -6,6 +6,7 @@ import {
   parseFilters,
   reportHeaders,
   reportValues,
+  securedPlacementRows,
   type SearchParams,
 } from "@/lib/monitoring/model";
 import { MonitoringFilterForm } from "@/components/monitoring/filters";
@@ -25,6 +26,7 @@ export default async function ReportsPage({
   const filters = parseFilters(params);
   const all = await loadMonitoring(access);
   const rows = filterRows(all, filters);
+  const confirmedPlacementRows = securedPlacementRows(rows);
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/.test(params.page)
       ? Number(params.page)
@@ -67,12 +69,19 @@ export default async function ReportsPage({
             title={
               {
                 school: "Alumni per sekolah",
-                country: "Alumni per negara",
+                country: "Penempatan terkonfirmasi per negara",
                 year: "Alumni per tahun kelulusan",
-                sector: "Alumni per sektor pekerjaan",
+                sector: "Penempatan terkonfirmasi per sektor pekerjaan",
               }[dimension]
             }
-            rows={distribution(rows, dimension)}
+            rows={
+              distribution(
+                dimension === "country" || dimension === "sector"
+                  ? confirmedPlacementRows
+                  : rows,
+                dimension,
+              )
+            }
           />
         ))}
       </div>
