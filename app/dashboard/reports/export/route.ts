@@ -1,6 +1,11 @@
 import { getAlumniAccess } from "@/lib/alumni/access";
 import { loadMonitoring } from "@/lib/monitoring/data";
-import { exportCsv, filterRows, parseFilters } from "@/lib/monitoring/model";
+import {
+  exportCsv,
+  filterRows,
+  parseFilters,
+  reportFileName,
+} from "@/lib/monitoring/model";
 
 export async function GET(request: Request) {
   const headers = {
@@ -19,15 +24,14 @@ export async function GET(request: Request) {
         status: 403,
         headers,
       });
-    const filters = parseFilters(
-      Object.fromEntries(new URL(request.url).searchParams),
-    );
+    const url = new URL(request.url);
+    const filters = parseFilters(Object.fromEntries(url.searchParams));
     const rows = filterRows(await loadMonitoring(access), filters);
     return new Response(exportCsv(rows), {
       headers: {
         ...headers,
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="laporan-alumni.csv"',
+        "Content-Disposition": `attachment; filename="${reportFileName()}"`,
       },
     });
   } catch {
