@@ -38,6 +38,8 @@ const roles = load("lib/auth/roles.ts");
 const alumniId = "00000000-0000-4000-8000-000000000001";
 const schoolId = "00000000-0000-4000-8000-000000000002";
 const otherSchoolId = "00000000-0000-4000-8000-000000000003";
+const placementId = "00000000-0000-4000-8000-000000000004";
+const placementUpdatedAt = "2026-11-05T01:00:00.000Z";
 const identity = {
   full_name: "Alumni Fiktif Pengujian",
   graduation_year: 2020,
@@ -45,14 +47,28 @@ const identity = {
 };
 const placement = {
   destination_country: "Jepang",
-  company_name: "Perusahaan Fiktif",
-  work_sector: "Teknologi",
+  placement_secured: false,
+  placement_provider_name: "",
+  work_sector: "",
   status: "persiapan_berangkat",
   planned_departure: "",
   actual_departure: "",
   employment_start: "",
   contract_end_date: "",
   confirm_existing_condition: false,
+};
+const placementEdit = {
+  placement_id: placementId,
+  expected_status: "persiapan_berangkat",
+  expected_updated_at: placementUpdatedAt,
+  destination_country: "Jepang",
+  placement_secured: "true",
+  placement_provider_name: "LPK Fiktif",
+  work_sector: "Manufaktur",
+  planned_departure: "2030-01-01",
+  actual_departure: "",
+  employment_start: "",
+  contract_end_date: "",
 };
 
 test("identity validation enforces database limits and strips client-controlled fields", () => {
@@ -94,12 +110,17 @@ test("all four initial statuses are supported and non-default status requires co
       schema.placementSchema.safeParse({
         ...placement,
         status,
+        placement_secured: status !== "persiapan_berangkat",
         confirm_existing_condition: true,
       }).success,
       true,
     );
     assert.equal(
-      schema.placementSchema.safeParse({ ...placement, status }).success,
+      schema.placementSchema.safeParse({
+        ...placement,
+        status,
+        placement_secured: status !== "persiapan_berangkat",
+      }).success,
       status === "persiapan_berangkat",
     );
   }
@@ -113,6 +134,7 @@ test("all four initial statuses are supported and non-default status requires co
 test("placement validates real dates, status/date compatibility, chronology and future actual/end dates", () => {
   const historical = {
     ...placement,
+    placement_secured: true,
     status: "selesai_kontrak",
     confirm_existing_condition: true,
     actual_departure: "2020-01-01",
@@ -135,6 +157,7 @@ test("placement validates real dates, status/date compatibility, chronology and 
   assert.equal(
     schema.placementSchema.safeParse({
       ...placement,
+      placement_secured: true,
       planned_departure: "2024-02-29",
     }).success,
     true,
@@ -159,6 +182,7 @@ test("placement validates real dates, status/date compatibility, chronology and 
         schema.placementSchema.safeParse({
           ...placement,
           status,
+          placement_secured: status !== "persiapan_berangkat",
           confirm_existing_condition: true,
           [field]: "2020-01-01",
         }).success,
@@ -169,6 +193,7 @@ test("placement validates real dates, status/date compatibility, chronology and 
     schema.placementSchema.safeParse({
       ...placement,
       status: "aktif_bekerja",
+      placement_secured: true,
       confirm_existing_condition: true,
       contract_end_date: "2020-01-01",
     }).success,
@@ -177,13 +202,83 @@ test("placement validates real dates, status/date compatibility, chronology and 
   for (const values of [
     { destination_country: " " },
     { destination_country: "a".repeat(101) },
-    { company_name: "a".repeat(201) },
+    { placement_provider_name: "a".repeat(201) },
     { work_sector: "a".repeat(151) },
+  ])
+    assert.equal(
+      schema.placementSchema.safeParse({
+        ...placement,
+        placement_secured: true,
+        ...values,
+      }).success,
+      false,
+    );
+});
+
+test("preparation placement state controls dependent fields without weakening country validation", () => {
+  assert.equal(schema.placementSchema.safeParse(placement).success, true);
+  assert.equal(
+    schema.placementSchema.safeParse({
+      ...placement,
+      placement_secured: true,
+      placement_provider_name: "LPK Fiktif",
+      work_sector: "Manufaktur",
+      planned_departure: "2030-01-01",
+    }).success,
+    true,
+  );
+  for (const values of [
+    { placement_provider_name: "LPK stale" },
+    { work_sector: "Sektor stale" },
+    { planned_departure: "2030-01-01" },
   ])
     assert.equal(
       schema.placementSchema.safeParse({ ...placement, ...values }).success,
       false,
     );
+  assert.equal(
+    schema.placementSchema.safeParse({
+      ...placement,
+      destination_country: "",
+    }).success,
+    false,
+  );
+});
+
+test("placement detail edits preserve status-specific fields and require an explicit placement state", () => {
+  const parsed = schema.placementDetailsEditSchema.parse(placementEdit);
+  assert.equal(parsed.placement_secured, true);
+  assert.equal(parsed.destination_country, "Jepang");
+  for (const values of [
+    { placement_secured: "" },
+    {
+      placement_secured: "false",
+      placement_provider_name: "LPK stale",
+    },
+  ])
+    assert.equal(
+      schema.placementDetailsEditSchema.safeParse({
+        ...placementEdit,
+        ...values,
+      }).success,
+      false,
+    );
+  assert.equal(
+    schema.placementDetailsEditSchema.safeParse({
+      ...placementEdit,
+      expected_status: "aktif_bekerja",
+      actual_departure: "2020-01-01",
+    }).success,
+    true,
+  );
+  assert.equal(
+    schema.placementDetailsEditSchema.safeParse({
+      ...placementEdit,
+      expected_status: "aktif_bekerja",
+      actual_departure: "",
+    }).success,
+    false,
+  );
 });
 
 test("initial registration accepts only the date assigned to its selected status", () => {
@@ -220,8 +315,12 @@ test("initial registration accepts only the date assigned to its selected status
     const valid = {
       ...placement,
       status,
+      placement_secured:
+        status !== "persiapan_berangkat" || Boolean(current.allowedField),
       confirm_existing_condition: current.confirm_existing_condition,
-      ...(current.allowedField ? { [current.allowedField]: current.value } : {}),
+      ...(current.allowedField
+        ? { [current.allowedField]: current.value }
+        : {}),
     };
     assert.equal(schema.initialPlacementSchema.safeParse(valid).success, true);
 
@@ -250,7 +349,10 @@ test("country dataset is complete, searchable and canonicalizes supported aliase
     true,
   );
   assert.equal(countryData.searchCountryOptions("Japan")[0].label, "Jepang");
-  assert.equal(countryData.searchCountryOptions("korsel")[0].label, "Korea Selatan");
+  assert.equal(
+    countryData.searchCountryOptions("korsel")[0].label,
+    "Korea Selatan",
+  );
   assert.equal(countryData.searchCountryOptions("aland")[0].code, "AX");
   assert.equal(
     schema.placementSchema.parse({
@@ -269,10 +371,7 @@ test("country dataset is complete, searchable and canonicalizes supported aliase
     "Pilih negara tujuan yang valid",
   );
   assert.equal(schema.destinationCountrySchema.safeParse("").success, false);
-  assert.equal(
-    schema.destinationCountrySchema.parse("Japan"),
-    "Jepang",
-  );
+  assert.equal(schema.destinationCountrySchema.parse("Japan"), "Jepang");
 });
 
 test("country combobox owns selection and required Indonesian feedback", () => {
@@ -372,11 +471,14 @@ function harness(options = {}) {
             };
           if (table === "placements")
             return {
-              data: config.existingPlacement
-                ? typeof config.existingPlacement === "object"
-                  ? config.existingPlacement
-                  : { id: "existing-placement" }
-                : null,
+              data:
+                config.currentPlacement !== undefined
+                  ? config.currentPlacement
+                  : config.existingPlacement
+                    ? typeof config.existingPlacement === "object"
+                      ? config.existingPlacement
+                      : { id: "existing-placement" }
+                    : null,
               error: config.placementReadError || null,
             };
           const excluded = filters.some(
@@ -433,7 +535,7 @@ function harness(options = {}) {
   });
   const actions = load("app/dashboard/alumni/actions.ts", {
     "@/lib/alumni/access": access,
-      "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
+    "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
     "@/lib/alumni/schema": schema,
     "next/cache": { revalidatePath: (value) => revalidated.push(value) },
   });
@@ -457,6 +559,7 @@ function harness(options = {}) {
     const monitoring = load("lib/monitoring/data.ts", {
       "server-only": {},
       "@/lib/data/read-all": readAll,
+      "@/lib/alumni/placement-compat": load("lib/alumni/placement-compat.ts"),
       "./model": model,
       "@/lib/countries": countryData,
     });
@@ -468,6 +571,7 @@ function harness(options = {}) {
       "@/components/data/pagination": { Pagination: () => null },
       "@/lib/alumni/access": access,
       "@/lib/alumni/navigation": load("lib/alumni/navigation.ts"),
+      "@/lib/alumni/placement-compat": load("lib/alumni/placement-compat.ts"),
       "@/lib/alumni/schema": schema,
       "@/lib/countries": countryData,
       "next/navigation": {
@@ -489,8 +593,10 @@ function harness(options = {}) {
         AlumniRegistrationForm: () => null,
       },
       "@/components/alumni/placement-form": { PlacementForm: () => null },
+      "@/components/alumni/placement-editor": { PlacementEditor: () => null },
       "@/components/alumni/status-action": { StatusAction: () => null },
       "@/components/alumni/status-history": { StatusHistory: () => null },
+      "@/components/dashboard-icon": { DashboardIcon: () => null },
       "@/lib/alumni/history": {
         getPlacementHistory: async () => ({ entries: [], error: false }),
       },
@@ -563,6 +669,113 @@ test("direct actions reject Dinas, invalid profiles and inactive schools regardl
     assert.equal(h.mutations.length, 0);
     assert.equal(h.rpcs.length, 0);
   }
+});
+
+test("placement detail editing is staff-only, ownership-bound and uses the guarded RPC", async () => {
+  const currentPlacement = {
+    id: placementId,
+    alumni_id: alumniId,
+    status: "persiapan_berangkat",
+    is_current: true,
+    updated_at: placementUpdatedAt,
+  };
+  const h = harness({ currentPlacement });
+  const result = await h.updatePlacementDetails(placementEdit);
+  assert.equal(result.success, true);
+  assert.deepEqual(h.rpcs, [
+    {
+      name: "update_current_placement_details",
+      args: {
+        p_placement_id: placementId,
+        p_expected_status: "persiapan_berangkat",
+        p_expected_updated_at: placementUpdatedAt,
+        p_destination_country: "Jepang",
+        p_placement_secured: true,
+        p_placement_provider_name: "LPK Fiktif",
+        p_work_sector: "Manufaktur",
+        p_planned_departure: "2030-01-01",
+        p_actual_departure: null,
+        p_employment_start: null,
+        p_contract_end_date: null,
+      },
+    },
+  ]);
+  assert.equal(h.mutations.length, 0);
+  assert.ok(h.revalidated.includes(`/dashboard/alumni/${alumniId}`));
+
+  const activePlacement = {
+    ...currentPlacement,
+    status: "aktif_bekerja",
+    planned_departure: "2030-01-01",
+  };
+  const active = harness({ currentPlacement: activePlacement });
+  const activeResult = await active.updatePlacementDetails({
+    ...placementEdit,
+    expected_status: "aktif_bekerja",
+    placement_provider_name: "LPK Fiktif Diperbarui",
+    planned_departure: "2999-12-31",
+    actual_departure: "2020-01-01",
+    employment_start: "2020-01-02",
+  });
+  assert.equal(activeResult.success, true);
+  assert.equal(active.rpcs[0].args.p_planned_departure, "2030-01-01");
+  assert.equal(
+    active.rpcs[0].args.p_placement_provider_name,
+    "LPK Fiktif Diperbarui",
+  );
+
+  for (const options of [
+    { role: "admin_dinas", currentPlacement },
+    { role: "viewer_dinas", currentPlacement },
+    { rowSchool: otherSchoolId, currentPlacement },
+    { currentPlacement: { ...currentPlacement, is_current: false } },
+  ]) {
+    const rejected = harness(options);
+    const response = await rejected.updatePlacementDetails(placementEdit);
+    assert.equal(response.success, false);
+    assert.equal(rejected.rpcs.length, 0);
+  }
+});
+
+test("placement detail editing rejects stale, invalid and unavailable updates safely", async () => {
+  const currentPlacement = {
+    id: placementId,
+    alumni_id: alumniId,
+    status: "persiapan_berangkat",
+    is_current: true,
+    updated_at: "2026-11-05T02:00:00.000Z",
+  };
+  const stale = harness({ currentPlacement });
+  const staleResult = await stale.updatePlacementDetails(placementEdit);
+  assert.equal(staleResult.success, false);
+  assert.equal(staleResult.refresh, true);
+  assert.equal(stale.rpcs.length, 0);
+
+  const invalid = harness({ currentPlacement });
+  assert.equal(
+    (
+      await invalid.updatePlacementDetails({
+        ...placementEdit,
+        placement_secured: "false",
+      })
+    ).success,
+    false,
+  );
+  assert.equal(invalid.rpcs.length, 0);
+
+  const unavailable = harness({
+    currentPlacement: { ...currentPlacement, updated_at: placementUpdatedAt },
+    rpcError: true,
+    rpcCode: "PGRST202",
+  });
+  const unavailableResult =
+    await unavailable.updatePlacementDetails(placementEdit);
+  assert.equal(unavailableResult.success, false);
+  assert.match(unavailableResult.message, /migration/);
+  assert.deepEqual(
+    unavailable.rpcs.map((rpc) => rpc.name),
+    ["update_current_placement_details"],
+  );
 });
 
 test("creation omits school_id; editing uses verified ownership and only identity fields", async () => {
@@ -644,8 +857,6 @@ test("placement uses exact RPC parameters, nullable optional values, and no dire
     (
       await h.registerInitialPlacement(alumniId, {
         ...placement,
-        company_name: "",
-        work_sector: "",
         school_id: otherSchoolId,
         is_current: false,
       })
@@ -659,8 +870,9 @@ test("placement uses exact RPC parameters, nullable optional values, and no dire
         p_alumni_id: alumniId,
         p_expected_current_id: null,
         p_destination_country: "Jepang",
+        p_placement_secured: false,
+        p_placement_provider_name: null,
         p_work_sector: null,
-        p_company_name: null,
         p_planned_departure: null,
         p_initial_status: "persiapan_berangkat",
         p_actual_departure: null,
@@ -672,23 +884,46 @@ test("placement uses exact RPC parameters, nullable optional values, and no dire
   assert.equal(h.mutations.length, 0);
 });
 
+test("secured preparation sends intermediary, sector and plan through the guarded RPC", async () => {
+  const h = harness();
+  assert.equal(
+    (
+      await h.registerInitialPlacement(alumniId, {
+        ...placement,
+        placement_secured: true,
+        placement_provider_name: "LPK Fiktif",
+        work_sector: "Manufaktur",
+        planned_departure: "2030-01-01",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(h.rpcs[0].args.p_placement_secured, true);
+  assert.equal(h.rpcs[0].args.p_placement_provider_name, "LPK Fiktif");
+  assert.equal(h.rpcs[0].args.p_work_sector, "Manufaktur");
+  assert.equal(h.rpcs[0].args.p_planned_departure, "2030-01-01");
+});
+
 test("initial placement action rejects stale dates before calling the RPC", async () => {
   for (const input of [
     {
       ...placement,
       status: "aktif_bekerja",
+      placement_secured: true,
       confirm_existing_condition: true,
       planned_departure: "2020-01-01",
     },
     {
       ...placement,
       status: "selesai_kontrak",
+      placement_secured: true,
       confirm_existing_condition: true,
       actual_departure: "2020-01-01",
     },
     {
       ...placement,
       status: "batal_berangkat",
+      placement_secured: true,
       confirm_existing_condition: true,
       contract_end_date: "2020-01-01",
     },
@@ -699,6 +934,14 @@ test("initial placement action rejects stale dates before calling the RPC", asyn
       false,
     );
     assert.equal(h.rpcs.length, 0);
+    if (input.planned_departure) {
+      const direct = harness();
+      assert.equal(
+        (await direct.registerPlacement(alumniId, null, input)).success,
+        false,
+      );
+      assert.equal(direct.rpcs.length, 0);
+    }
   }
 });
 
@@ -745,6 +988,8 @@ test("initial placement payload sends only the selected status date", async () =
     const result = await h.registerInitialPlacement(alumniId, {
       ...placement,
       status: current.status,
+      placement_secured:
+        current.status !== "persiapan_berangkat" || Boolean(current.field),
       confirm_existing_condition: current.confirm_existing_condition,
       ...(current.field ? { [current.field]: current.value } : {}),
     });
@@ -935,6 +1180,25 @@ test("registration UI keeps both steps on one route and uses one final save acti
   assert.doesNotMatch(source, /router\.replace\([^)]*new/);
 });
 
+test("placement detail editor is scoped to writable School access and keeps status immutable", () => {
+  const detailSource = fs.readFileSync(
+    path.join(root, "app/dashboard/alumni/[id]/page.tsx"),
+    "utf8",
+  );
+  const editorSource = fs.readFileSync(
+    path.join(root, "components/alumni/placement-editor.tsx"),
+    "utf8",
+  );
+  assert.match(
+    detailSource,
+    /access\.canWrite && \([\s\S]*<PlacementEditor placement=\{placement\}/,
+  );
+  assert.match(editorSource, /Edit penempatan/);
+  assert.match(editorSource, /Status tetap \{statusLabels\[status\]\}/);
+  assert.match(editorSource, /updatePlacementDetails\(values\)/);
+  assert.doesNotMatch(editorSource, /<select[^>]+expected_status/);
+});
+
 test("server-rendered list/detail apply school ownership; Dinas may read all schools", async () => {
   for (const role of ["admin_dinas", "viewer_dinas", "petugas_sekolah"]) {
     const h = harness({ role });
@@ -1022,14 +1286,16 @@ test("all pages redirect missing sessions; Dinas registration route performs no 
     await assert.rejects(
       h.page(`app/dashboard/alumni/${file}`)({
         params: Promise.resolve({ id: alumniId }),
-      searchParams: Promise.resolve({}),
+        searchParams: Promise.resolve({}),
       }),
       /redirect:\/auth\/login/,
     );
   }
   for (const role of ["admin_dinas", "viewer_dinas"]) {
     const h = harness({ role });
-    await h.page("app/dashboard/alumni/new/page.tsx")({searchParams:Promise.resolve({})});
+    await h.page("app/dashboard/alumni/new/page.tsx")({
+      searchParams: Promise.resolve({}),
+    });
     assert.equal(
       h.calls.some((call) => call.table === "alumni"),
       false,
