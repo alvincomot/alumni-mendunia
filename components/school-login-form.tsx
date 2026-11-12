@@ -74,6 +74,8 @@ export function SchoolLoginForm({
   const busy = useRef(false);
   const focusNpsnAfterChange = useRef(false);
   const npsnInput = useRef<HTMLInputElement>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
   const identityHeading = useRef<HTMLHeadingElement>(null);
   const [npsn, setNpsn] = useState("");
   const [school, setSchool] = useState<SchoolLookup | null>(null);
@@ -95,13 +97,16 @@ export function SchoolLoginForm({
   const activationCooldown = Math.max(schoolCooldown, clientCooldown);
 
   useEffect(() => {
-    if (school) {
-      identityHeading.current?.focus();
-    } else if (focusNpsnAfterChange.current) {
+    if (!school && focusNpsnAfterChange.current) {
       focusNpsnAfterChange.current = false;
       npsnInput.current?.focus();
+      return;
     }
-  }, [school]);
+    if (!school || pending) return;
+    if (school.status === "ACTIVE") passwordInput.current?.focus();
+    else if (school.status === "UNCLAIMED") emailInput.current?.focus();
+    else identityHeading.current?.focus();
+  }, [pending, school]);
   async function run(action: () => Promise<void>) {
     if (busy.current) return;
     busy.current = true;
@@ -161,6 +166,7 @@ export function SchoolLoginForm({
       const parsed = schoolEmailSchema.safeParse(email);
       if (!parsed.success) {
         setError(parsed.error.issues[0].message);
+        emailInput.current?.focus();
         return;
       }
       await sendActivation(parsed.data);
@@ -172,6 +178,7 @@ export function SchoolLoginForm({
       });
       if (!parsed.success) {
         setError(parsed.error.issues[0].message);
+        passwordInput.current?.focus();
         return;
       }
       await run(async () => {
@@ -269,6 +276,7 @@ export function SchoolLoginForm({
           <div className="space-y-2">
             <Label htmlFor="school-email">Email Sekolah</Label>
             <Input
+              ref={emailInput}
               id="school-email"
               type="email"
               autoComplete="email"
@@ -324,6 +332,7 @@ export function SchoolLoginForm({
             </Button>
           </div>
           <PasswordInput
+            ref={passwordInput}
             id="school-password"
             autoComplete="current-password"
             value={password}
