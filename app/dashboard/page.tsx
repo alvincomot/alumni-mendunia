@@ -88,17 +88,8 @@ export default async function Dashboard({
   );
   return (
     <div className="mx-auto w-full max-w-[90rem]">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="type-page-title text-[#191C1E]">
-            Ringkasan Statistik
-          </h1>
-          <p className="type-supporting mt-1 text-[#6B6D7A]">
-            {access.canWrite
-              ? "Data alumni dari sekolah Anda."
-              : "Data alumni SMK lintas sekolah sesuai akses Anda."}
-          </p>
-        </div>
+      <h1 className="sr-only">Dashboard</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
         <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
           {access.canWrite && (
             <>
