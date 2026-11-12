@@ -55,9 +55,9 @@ export function DashboardSidebar({ role }: { role: ApplicationRole }) {
     ...(role === "admin_dinas"
       ? [
           {
-            href: "/dashboard/audit-logs",
-            label: "Audit Log",
-            icon: "history" as const,
+            href: "/dashboard/monitoring",
+            label: "Monitoring Sistem",
+            icon: "activity" as const,
           },
         ]
       : []),
