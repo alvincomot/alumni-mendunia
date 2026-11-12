@@ -8,16 +8,6 @@ export function DashboardSkeleton() {
       label="Memuat dashboard. Sedang menyiapkan data, sesi, dan hak akses akun Anda."
       className="mx-auto w-full max-w-[90rem]"
     >
-      <div aria-hidden="true" className="mb-5 flex items-start gap-3">
-        <LoadingIndicator className="text-primary" />
-        <div>
-          <p className="type-card-title text-[#172B3A]">Memuat dashboard</p>
-          <p className="mt-1 text-sm leading-6 text-[#6B6D7A]">
-            Sedang menyiapkan data, sesi, dan hak akses akun Anda.
-          </p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }, (_, index) => (
           <div
