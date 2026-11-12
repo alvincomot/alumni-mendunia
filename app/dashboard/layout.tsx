@@ -5,6 +5,7 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { DashboardIcon } from "@/components/dashboard-icon";
 import { LogoutButton } from "@/components/logout-button";
 import { DashboardSessionLoading } from "@/components/ui/loading";
+import { PageviewTracker } from "@/components/monitoring/pageview-tracker";
 
 function initials(name: string) {
   return name
@@ -28,6 +29,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
       </a>
 
       <DashboardSidebar role={access.role} />
+      <PageviewTracker />
 
       <div className="min-w-0 lg:ml-72 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
