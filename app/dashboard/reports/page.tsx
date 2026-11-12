@@ -2,14 +2,11 @@ import { requireAccess } from "@/lib/auth/access";
 import { loadMonitoring } from "@/lib/monitoring/data";
 import {
   distribution,
-  filterRows,
-  parseFilters,
   reportHeaders,
   reportValues,
   securedPlacementRows,
   type SearchParams,
 } from "@/lib/monitoring/model";
-import { MonitoringFilterForm } from "@/components/monitoring/filters";
 import { MonitoringSummary } from "@/components/monitoring/summary";
 import { DistributionTable } from "@/components/monitoring/distribution";
 import { ReportTable } from "@/components/data/report-table";
@@ -23,9 +20,7 @@ export default async function ReportsPage({
 }) {
   const access = await requireAccess(["admin_dinas", "viewer_dinas"]);
   const params = await searchParams;
-  const filters = parseFilters(params);
-  const all = await loadMonitoring(access);
-  const rows = filterRows(all, filters);
+  const rows = await loadMonitoring(access);
   const confirmedPlacementRows = securedPlacementRows(rows);
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/.test(params.page)
@@ -35,31 +30,14 @@ export default async function ReportsPage({
     Math.max(1, requested),
     Math.max(1, Math.ceil(rows.length / 20)),
   );
-  const exportUrl = `/dashboard/reports/export?${new URLSearchParams(filters)}`;
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="type-page-title text-primary">
-            Laporan Alumni
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Satu baris per alumni dengan penempatan saat ini. Ringkasan dan
-            ekspor mengikuti seluruh filter, bukan hanya halaman tabel.
-          </p>
-        </div>
+      <h1 className="sr-only">Laporan Alumni</h1>
+      <div className="mb-6 flex justify-end">
         <Button asChild className="min-h-11">
-          <a href={exportUrl}>Unduh CSV</a>
+          <a href="/dashboard/reports/export">Unduh CSV</a>
         </Button>
       </div>
-      <MonitoringFilterForm
-        rows={all}
-        values={filters}
-        path="/dashboard/reports"
-        showSchools
-        showSector
-        showSearch
-      />
       <MonitoringSummary rows={rows} />
       <div className="my-6 grid gap-6 xl:grid-cols-2">
         {(["school", "country", "year", "sector"] as const).map((dimension) => (
@@ -94,12 +72,13 @@ export default async function ReportsPage({
         />
       ) : (
         <p className="rounded-xl border bg-card p-6">
-          Tidak ada data sesuai filter. Ekspor tetap berisi judul kolom.
+          Belum ada data alumni untuk ditampilkan. Ekspor tetap berisi judul
+          kolom.
         </p>
       )}
       <Pagination
         path="/dashboard/reports"
-        params={filters}
+        params={{}}
         page={page}
         total={rows.length}
       />
