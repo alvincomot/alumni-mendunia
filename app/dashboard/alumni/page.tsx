@@ -36,23 +36,16 @@ export default async function AlumniPage({
   );
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="type-page-title text-primary">Data Alumni</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {access.canWrite
-              ? "Kelola identitas, penempatan, dan perkembangan alumni sekolah Anda."
-              : "Lihat alumni dan penempatan seluruh sekolah. Akses hanya baca."}
-          </p>
-        </div>
-        {access.canWrite && (
+      <h1 className="sr-only">Data Alumni</h1>
+      {access.canWrite && (
+        <div className="flex justify-end">
           <Button asChild className="min-h-11">
             <Link href={alumniFormPath("/dashboard/alumni/new", returnTo)}>
               Tambah alumni
             </Link>
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       <MonitoringFilterForm
         rows={all}
         values={filters}
