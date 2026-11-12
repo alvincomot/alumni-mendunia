@@ -60,6 +60,7 @@ test("user-chosen passwords require only eight characters and matching confirmat
 test("password fields share an accessible show and hide control without native length validation", () => {
   const passwordInput = source("components/ui/password-input.tsx");
   const login = source("components/login-form.tsx");
+  const schoolLogin = source("components/school-login-form.tsx");
   const update = source("components/update-password-form.tsx");
   const recovery = source("components/forgot-password-form.tsx");
 
@@ -67,7 +68,13 @@ test("password fields share an accessible show and hide control without native l
   assert.match(passwordInput, /type="button"/);
   assert.match(passwordInput, /Tampilkan kata sandi/);
   assert.match(passwordInput, /Sembunyikan kata sandi/);
+  assert.match(passwordInput, /focus-within:ring-2/);
+  assert.match(passwordInput, /focus-visible:ring-0/);
+  assert.match(passwordInput, /hover:text-foreground/);
+  assert.doesNotMatch(passwordInput, /hover:bg-secondary/);
+  assert.doesNotMatch(passwordInput, /focus-visible:ring-inset/);
   assert.match(login, /<PasswordInput/);
+  assert.match(schoolLogin, /<PasswordInput/);
   assert.match(update, /<PasswordInput/g);
   assert.match(login, /noValidate/);
   assert.match(update, /noValidate/);
@@ -75,6 +82,27 @@ test("password fields share an accessible show and hide control without native l
   assert.match(recovery, /noValidate/);
   assert.doesNotMatch(update, /minLength=|pattern=/);
   assert.match(update, /Gunakan minimal 8 karakter\./);
+});
+
+test("routine dashboard pages hide redundant headers while monitoring keeps its operational title", () => {
+  const pages = [
+    "app/dashboard/page.tsx",
+    "app/dashboard/alumni/page.tsx",
+    "app/dashboard/schools/page.tsx",
+    "app/dashboard/users/page.tsx",
+    "app/dashboard/reports/page.tsx",
+  ].map(source);
+  const monitoring = source("app/dashboard/monitoring/page.tsx");
+  const users = source("app/dashboard/users/page.tsx");
+  const reports = source("app/dashboard/reports/page.tsx");
+
+  for (const page of pages) assert.match(page, /<h1 className="sr-only">/);
+  assert.match(monitoring, /<h1 className="type-page-title text-primary">Monitoring Sistem<\/h1>/);
+  assert.doesNotMatch(monitoring, /<h1 className="sr-only">Monitoring Sistem<\/h1>/);
+  assert.match(users, /<Filters[\s\S]*inlineActions/);
+  assert.doesNotMatch(reports, /MonitoringFilterForm|parseFilters|filterRows/);
+  assert.match(reports, /href="\/dashboard\/reports\/export"/);
+  assert.match(reports, /params=\{\{\}\}/);
 });
 
 test("routine dialogs close only after confirmed success and use concise toasts", () => {
