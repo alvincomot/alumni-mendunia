@@ -47,6 +47,7 @@ const mocks = {
   "@/lib/schools/access": `export {access as getSchoolAccess} from 'fixture:data'`,
   "@/lib/alumni/access": `export {access as getAlumniAccess} from 'fixture:data'`,
   "@/lib/monitoring/data": `import {alumni,history} from 'fixture:data';export async function loadMonitoring(){return window.fixture.empty?[]:alumni}export async function loadRecentActivity(){return window.fixture.empty?[]:history.map(h=>({...h,placements:{alumni:alumni[0]}}))}`,
+  "@/lib/system-monitoring/data": `export async function loadSystemMonitoringSummary(){const empty=window.fixture.empty;return {available:true,data:{generated_at:'2026-11-09T08:00:00.000Z',range:{from:'2026-11-03',to:'2026-11-09'},traffic:{total:empty?0:18,today:empty?0:4,last_7_days:empty?0:12,last_30_days:empty?0:18,selected_period:empty?0:12,trend:empty?[]:[{day:'2026-11-03',count:1},{day:'2026-11-04',count:0},{day:'2026-11-05',count:2},{day:'2026-11-06',count:1},{day:'2026-11-07',count:2},{day:'2026-11-08',count:2},{day:'2026-11-09',count:4}],top_paths:empty?[]:[{path:'/dashboard/alumni',count:7},{path:'/dashboard',count:5}]},schools:{total:empty?0:5,active_accounts:empty?0:1,not_activated:empty?0:2,pending_activation:empty?0:1,suspended:empty?0:2,activation_percentage:empty?0:20,schools_with_changes_7_days:empty?0:1,schools_with_changes_30_days:empty?0:1},features:{alumni_created:empty?0:2,alumni_updated:empty?0:1,placement_changes:empty?0:2,departure_confirmations:empty?0:1,school_management:empty?0:1,user_management:empty?0:1}}}} export async function loadRecentMonitoringActivity(){return window.fixture.empty?[]:[{id:'audit-1',action:'INSERT',entityType:'alumni',actorName:'Admin Dinas',occurredAt:'2026-11-09T08:00:00.000Z'}]} export async function checkSystemHealth(){return {databaseAvailable:true,checkedAt:'2026-11-09T08:00:00.000Z',durationMilliseconds:12}}`,
   "@/lib/alumni/history": `import {history} from 'fixture:data';export async function getPlacementHistory(){return {available:true,entries:history}}`,
   "@/lib/users/admin": `import {profiles} from 'fixture:data';export function createAdminClient(){window.fixture.adminReads++;return {async rpc(name,{p_npsn}){return {data:{name:'SMK Fiktif',npsn:p_npsn,status:({'00000001':'ACTIVE','00000002':'SUSPENDED','00000003':'UNCLAIMED','00000004':'PENDING_ACTIVATION','00000005':'SUSPENDED'})[p_npsn],retry_after:null},error:window.fixture.statusFail?{}:null}}}} export function invitationRedirect(){return 'http://fixture/auth/confirm'}export function administrationMessage(){return 'Fixture unavailable'}export async function listAuthUsers(){return profiles.map(p=>({id:p.user_id,email:p.role+'@example.test'}))}`,
   "@/lib/supabase/client": `export function createClient(){return {auth:{async signOut(){if(window.fixture.signOutFail)return {error:new Error('Fixture sign-out failure')};window.fixture.signedOut=true;return {error:null}}}}}`,
@@ -76,7 +77,7 @@ const compiled = await build({
     import Schools from './app/dashboard/schools/page';
     import Users from './app/dashboard/users/page';
     import Reports from './app/dashboard/reports/page';
-    import Audit from './app/dashboard/audit-logs/page';
+    import Monitoring from './app/dashboard/monitoring/page';
     import Detail from './app/dashboard/alumni/[id]/page';
     import NewAlumni from './app/dashboard/alumni/new/page';
     import DashboardLoading from './app/dashboard/loading';
@@ -84,15 +85,15 @@ const compiled = await build({
     import SchoolsLoading from './app/dashboard/schools/loading';
     import UsersLoading from './app/dashboard/users/loading';
     import ReportsLoading from './app/dashboard/reports/loading';
-    import AuditLoading from './app/dashboard/audit-logs/loading';
+    import MonitoringLoading from './app/dashboard/monitoring/loading';
     import DashboardError from './app/dashboard/error';
     import {ToastProvider} from './components/ui/toast';
     import {id} from 'fixture:data';
     const params=new URL(location.href).searchParams,view=params.get('view')||'dashboard';
-    const paths={dashboard:'/dashboard',alumni:'/dashboard/alumni',schools:'/dashboard/schools',users:'/dashboard/users',reports:'/dashboard/reports',audit:'/dashboard/audit-logs',detail:'/dashboard/alumni/'+id(20),registration:'/dashboard/alumni/new'};
+    const paths={dashboard:'/dashboard',alumni:'/dashboard/alumni',schools:'/dashboard/schools',users:'/dashboard/users',reports:'/dashboard/reports',monitoring:'/dashboard/monitoring',audit:'/dashboard/monitoring',health:'/dashboard/monitoring',detail:'/dashboard/alumni/'+id(20),registration:'/dashboard/alumni/new'};
     window.fixture={view,path:paths[view]||'/dashboard',empty:params.has('empty'),viewer:params.has('viewer'),statusFail:params.has('status-fail'),adminReads:0,schoolChanges:[],accountChanges:[],placementUpdates:[],staff:view==='registration'||(view==='detail'&&!params.has('viewer'))};
-    const pages={dashboard:Dashboard,alumni:Alumni,schools:Schools,users:Users,reports:Reports,audit:Audit,detail:Detail,registration:NewAlumni};
-    const loadings={dashboard:DashboardLoading,alumni:AlumniLoading,schools:SchoolsLoading,users:UsersLoading,reports:ReportsLoading,audit:AuditLoading};
+    const pages={dashboard:Dashboard,alumni:Alumni,schools:Schools,users:Users,reports:Reports,monitoring:Monitoring,audit:Monitoring,health:Monitoring,detail:Detail,registration:NewAlumni};
+    const loadings={dashboard:DashboardLoading,alumni:AlumniLoading,schools:SchoolsLoading,users:UsersLoading,reports:ReportsLoading,monitoring:MonitoringLoading,audit:MonitoringLoading,health:MonitoringLoading};
     async function resolve(el){
       if(!React.isValidElement(el))return el;
       if(el.type?.constructor?.name==='AsyncFunction')return resolve(await el.type(el.props));
@@ -100,8 +101,9 @@ const compiled = await build({
       return el;
     }
     async function start(){
+      const monitoringParams=view==='audit'?{tab:'audit'}:view==='health'?{tab:'health'}:{};
       const page=params.has('error')?<DashboardError reset={()=>{window.fixture.retried=true}}/>:
-        await (params.has('loading')?loadings[view]:pages[view])({searchParams:Promise.resolve({}),params:Promise.resolve({id:id(20)})});
+        await (params.has('loading')?loadings[view]:pages[view])({searchParams:Promise.resolve(monitoringParams),params:Promise.resolve({id:id(20)})});
       const content=await resolve(Layout({children:await resolve(page)}));
       createRoot(document.getElementById('root')).render(<ToastProvider>{content}<p className='fixed bottom-1 right-2 z-[110] bg-white px-2 text-xs text-slate-700 pointer-events-none'>Fixture UI: data fiktif</p></ToastProvider>);
     }start();`,
@@ -202,20 +204,26 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  page.on("requestfailed", (request) =>
-    errors.push(`Request failed: ${new URL(request.url()).pathname}`),
-  );
+  page.on("requestfailed", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname !== "/api/monitoring/pageview")
+      errors.push(`Request failed: ${pathname}`);
+  });
   page.on("response", (response) => {
     if (response.status() >= 400)
       errors.push(
         `HTTP ${response.status()}: ${new URL(response.url()).pathname}`,
       );
   });
-  await page.route("**/*", (route) =>
-    new URL(route.request().url()).origin === base
-      ? route.continue()
-      : route.abort(),
-  );
+  await page.route("**/*", (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (
+      requestUrl.origin === base &&
+      requestUrl.pathname === "/api/monitoring/pageview"
+    )
+      return route.fulfill({ status: 204, body: "" });
+    return requestUrl.origin === base ? route.continue() : route.abort();
+  });
   async function check(name) {
     await page.locator("#main-content").waitFor();
     assert.equal(
@@ -269,21 +277,108 @@ try {
       "schools",
       "users",
       "reports",
+      "monitoring",
       "audit",
+      "health",
       "detail",
       "registration",
     ]) {
       await page.goto(`${base}/?view=${view}`);
       await page.locator("#main-content h1").waitFor();
       await check(`${view}-${width}`);
+      if (
+        [
+          "dashboard",
+          "alumni",
+          "schools",
+          "users",
+          "reports",
+        ].includes(view)
+      )
+        assert.match(
+          (await page.locator("#main-content h1").first().getAttribute("class")) ?? "",
+          /sr-only/,
+          `${view}-${width} keeps only an accessible page heading`,
+        );
+      if (["monitoring", "audit", "health"].includes(view)) {
+        assert.equal(
+          await page.getByRole("tab").count(),
+          3,
+          `${view}-${width} exposes three monitoring tabs`,
+        );
+        const expected =
+          view === "audit"
+            ? "Audit Log"
+            : view === "health"
+              ? "Kesehatan Sistem"
+              : "Ringkasan Penggunaan";
+        assert.equal(
+          await page
+            .getByRole("tab", { name: expected, exact: true })
+            .getAttribute("aria-selected"),
+          "true",
+        );
+      }
+      if (view === "audit") {
+        await page.getByLabel("Tindakan").selectOption("UPDATE");
+        await page.getByRole("button", { name: "Terapkan", exact: true }).click();
+        assert.match(
+          await page.evaluate(() => window.fixture.destination),
+          /^\/dashboard\/monitoring\?tab=audit&action=UPDATE$/,
+        );
+        await page.getByRole("button", { name: "Lihat detail", exact: true }).click();
+        const auditDrawer = page.getByRole("dialog", {
+          name: "Detail Audit Log",
+        });
+        await auditDrawer.waitFor();
+        const drawerBox = await auditDrawer.boundingBox();
+        assert.ok(drawerBox, `${view}-${width} renders the audit drawer`);
+        assert.ok(
+          Math.abs(drawerBox.x + drawerBox.width - width) <= 2,
+          `${view}-${width} anchors the audit drawer to the right edge`,
+        );
+        assert.ok(
+          drawerBox.height >= 898,
+          `${view}-${width} keeps the audit drawer viewport-height`,
+        );
+        await page.keyboard.press("Escape");
+      }
       if (view === "reports") {
         await page.getByRole("link", { name: "Unduh CSV", exact: true }).waitFor();
+        assert.equal(await page.getByLabel("Cari nama alumni").count(), 0);
+        assert.equal(
+          await page.getByRole("button", { name: "Terapkan", exact: true }).count(),
+          0,
+        );
         assert.equal(
           await page
             .getByRole("link", { name: "Unduh CSV standar", exact: true })
             .count(),
           0,
         );
+      }
+      if (view === "users" && width >= 1280) {
+        const status = await page.getByLabel("Status profil").boundingBox();
+        const applyButton = page.getByRole("button", {
+          name: "Terapkan",
+          exact: true,
+        });
+        const resetLink = page.getByRole("link", {
+          name: "Reset",
+          exact: true,
+        });
+        const apply = await applyButton.boundingBox();
+        const reset = await resetLink.boundingBox();
+        assert.ok(status && apply && reset);
+        assert.ok(Math.abs(status.y - apply.y) < 2);
+        assert.ok(Math.abs(status.y - reset.y) < 2);
+        await page.getByLabel("Status profil").selectOption("active");
+        await applyButton.click();
+        assert.equal(
+          await page.evaluate(() => window.fixture.destination),
+          "/dashboard/users?active=active",
+        );
+        assert.equal(await resetLink.getAttribute("href"), "/dashboard/users");
       }
       if (view === "dashboard") {
         if (width < 1024) {
@@ -840,7 +935,9 @@ try {
       "schools",
       "users",
       "reports",
+      "monitoring",
       "audit",
+      "health",
     ]) {
       await page.goto(`${base}/?view=${view}&empty`);
       await check(`${view}-empty-${width}`);
@@ -850,7 +947,7 @@ try {
     await page.goto(`${base}/?view=dashboard&error`);
     await check(`dashboard-error-${width}`);
     console.log(
-      `PASS ${width}px: eight real pages with fictional data, empty/loading/error states, dialogs, authoritative School states, read-only details, distinct school/account actions and retry, Dinas-only invitations, viewer restrictions, school save/toast, logout failure/retry and keyboard focus`,
+      `PASS ${width}px: operational pages and all monitoring tabs with fictional data, empty/loading/error states, dialogs, viewer restrictions and keyboard focus`,
     );
   }
   assert.deepEqual(errors, []);
