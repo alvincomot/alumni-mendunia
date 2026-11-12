@@ -441,6 +441,7 @@ try {
     "20261105000200_edit_current_placement_details.sql",
     "20261106000100_preserve_planned_departure_on_placement_edit.sql",
     "20261106000200_require_contract_end_date_on_completion.sql",
+    "20261109000100_system_monitoring.sql",
   ]) {
     // PGlite does not package pgcrypto; core PostgreSQL gen_random_uuid() is sufficient here.
     await db.exec(migrationSql(filename));
@@ -472,6 +473,94 @@ try {
     INSERT INTO public.profiles(user_id,full_name,role,school_id) VALUES
       ('${user(1)}','Admin Fiktif','admin_dinas',NULL),('${user(2)}','Viewer Fiktif','viewer_dinas',NULL),
       ('${user(3)}','Petugas Fiktif A','petugas_sekolah','${user(11)}'),('${user(4)}','Petugas Fiktif B','petugas_sekolah','${user(12)}');`);
+  await check(
+    "monitoring pageviews are private, atomic aggregates with admin-only summaries",
+    async () => {
+      await as(3);
+      await db.query("SELECT public.record_app_pageview('/dashboard/alumni')");
+      await db.query("SELECT public.record_app_pageview('/dashboard/alumni')");
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.app_pageviews_daily"))
+          .rows[0].n,
+        0,
+      );
+      await assert.rejects(
+        db.query("SELECT public.record_app_pageview('/dashboard/alumni/private-id')"),
+        /Unsupported monitoring path/,
+      );
+      await assert.rejects(
+        db.query("SELECT public.get_system_monitoring_summary(current_date,current_date)"),
+        /Active administrator required/,
+      );
+
+      await as(2);
+      await db.query("SELECT public.record_app_pageview('/dashboard/reports')");
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.app_pageviews_daily"))
+          .rows[0].n,
+        0,
+      );
+      await assert.rejects(
+        db.query("SELECT public.get_system_monitoring_summary(current_date,current_date)"),
+        /Active administrator required/,
+      );
+
+      await as(1);
+      await db.query("SELECT public.record_app_pageview('/dashboard/monitoring')");
+      await Promise.all(
+        Array.from({ length: 8 }, () =>
+          db.query("SELECT public.record_app_pageview('/dashboard')"),
+        ),
+      );
+      const aggregates = (
+        await db.query(
+          "SELECT path,view_count::int AS view_count FROM public.app_pageviews_daily ORDER BY path",
+        )
+      ).rows;
+      assert.deepEqual(aggregates, [
+        { path: "/dashboard", view_count: 8 },
+        { path: "/dashboard/alumni", view_count: 2 },
+        { path: "/dashboard/monitoring", view_count: 1 },
+        { path: "/dashboard/reports", view_count: 1 },
+      ]);
+      const summary = (
+        await db.query(
+          "SELECT public.get_system_monitoring_summary(current_date,current_date) AS value",
+        )
+      ).rows[0].value;
+      assert.equal(Number(summary.traffic.today), 12);
+      assert.equal(Number(summary.traffic.selected_period), 12);
+      assert.equal(Number(summary.schools.total), 2);
+      assert.equal(Number(summary.schools.active_accounts), 2);
+      assert.equal(Number(summary.schools.not_activated), 0);
+      assert.equal(summary.traffic.top_paths[0].path, "/dashboard");
+      await assert.rejects(
+        db.query(
+          "SELECT public.get_system_monitoring_summary(current_date,current_date+1)",
+        ),
+        /Monitoring range must be between 1 and 90 days/,
+      );
+      assert.deepEqual(
+        (
+          await db.query(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='app_pageviews_daily' ORDER BY ordinal_position",
+          )
+        ).rows.map((row) => row.column_name),
+        ["day", "path", "view_count", "updated_at"],
+      );
+
+      await asAuthenticatedWithoutSession();
+      await assert.rejects(
+        db.query("SELECT public.record_app_pageview('/dashboard')"),
+        /Active authenticated profile required/,
+      );
+      await asAnonymous();
+      await assert.rejects(
+        db.query("SELECT public.record_app_pageview('/dashboard')"),
+        /permission denied/,
+      );
+    },
+  );
   await as(3);
   const alumni = (
     await db.query(
