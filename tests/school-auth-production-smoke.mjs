@@ -70,7 +70,7 @@ try {
     "/dashboard", "/dashboard/alumni", "/dashboard/alumni/new",
     "/dashboard/alumni/00000000-0000-4000-8000-000000000001",
     "/dashboard/schools", "/dashboard/users", "/dashboard/reports",
-    "/dashboard/reports/export", "/dashboard/audit-logs",
+    "/dashboard/reports/export", "/dashboard/audit-logs", "/dashboard/monitoring",
   ]) {
     const response = await page.goto(`${base}${route}`);
     assert.equal(response.ok(), true, route);

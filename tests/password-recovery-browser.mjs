@@ -16,6 +16,37 @@ const projectDependency = createRequire(path.join(root, "package.json"));
 const { chromium } = dependency("playwright");
 const { build } = dependency("esbuild");
 const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), "alumni-recovery-ui-results-"));
+
+async function assertUnboxedPasswordToggle(button) {
+  await button.hover();
+  assert.equal(
+    await button.evaluate((element) => getComputedStyle(element).backgroundColor),
+    "rgba(0, 0, 0, 0)",
+  );
+
+  await button.focus();
+  const focusStyles = await button.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      boxShadow: styles.boxShadow,
+      outlineColor: styles.outlineColor,
+      outlineStyle: styles.outlineStyle,
+      outlineWidth: styles.outlineWidth,
+    };
+  });
+  assert.equal(focusStyles.boxShadow, "none");
+  assert.ok(
+    focusStyles.outlineStyle === "none" ||
+      focusStyles.outlineWidth === "0px" ||
+      focusStyles.outlineColor === "rgba(0, 0, 0, 0)",
+    JSON.stringify(focusStyles),
+  );
+  assert.notEqual(
+    await button.locator("..").evaluate((element) => getComputedStyle(element).boxShadow),
+    "none",
+  );
+}
+
 const mocks = {
   "next/navigation": `export function usePathname(){return location.pathname} export function useRouter(){return {replace(url){window.fixture.destination=url},refresh(){}}} export function redirect(url){throw Error('Unexpected fixture redirect: '+url)}`,
   "@/lib/auth/school-activation": `export async function getSchoolActivationContext(){return window.fixture.view==='activation'?{name:'SMK Aktivasi Fiktif',npsn:'00000013',request_id:'00000000-0000-4000-8000-000000000013'}:null}`,
@@ -166,7 +197,14 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  page.on("requestfailed", (request) => errors.push(`Request failed: ${new URL(request.url()).pathname}`));
+  page.on("requestfailed", (request) => {
+    if (
+      request.resourceType() === "font" &&
+      request.failure()?.errorText === "net::ERR_ABORTED"
+    )
+      return;
+    errors.push(`Request failed: ${new URL(request.url()).pathname}`);
+  });
   page.on("response", (response) => {
     if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${new URL(response.url()).pathname}`);
   });
@@ -190,10 +228,20 @@ try {
     await page.getByRole("heading", { name: "SMK Aktivasi Fiktif dengan Nama Sekolah yang Panjang" }).waitFor();
     await page.getByText("NPSN: 00000013", { exact: true }).waitFor();
     await page.getByText("Masukkan kata sandi akun sekolah untuk melanjutkan.", { exact: true }).waitFor();
+    await page.locator('form[aria-busy="false"]').waitFor();
+    assert.equal(
+      await page
+        .getByLabel("Kata sandi", { exact: true })
+        .evaluate((element) => element === document.activeElement),
+      true,
+    );
     const passwordLabelBox = await page.getByText("Kata sandi", { exact: true }).boundingBox();
     const recoveryButtonBox = await page.getByRole("button", { name: "Lupa kata sandi?" }).boundingBox();
     assert.ok(passwordLabelBox && recoveryButtonBox);
     assert.ok(Math.abs((passwordLabelBox.y + passwordLabelBox.height / 2) - (recoveryButtonBox.y + recoveryButtonBox.height / 2)) < 8);
+    await assertUnboxedPasswordToggle(
+      page.getByRole("button", { name: "Tampilkan kata sandi", exact: true }),
+    );
     await page.getByLabel("Kata sandi", { exact: true }).fill("fictional-wrong-password");
     await page.getByRole("button", { name: "Tampilkan kata sandi", exact: true }).click();
     assert.equal(await page.getByLabel("Kata sandi", { exact: true }).getAttribute("type"), "text");
@@ -233,6 +281,12 @@ try {
       await page.screenshot({ path: path.join(artifacts, `school-${status.toLowerCase()}-initial-${width}.png`), fullPage: true, animations: "disabled" });
       if (status === "UNCLAIMED") {
         await page.getByLabel("Email Sekolah", { exact: true }).waitFor();
+        assert.equal(
+          await page
+            .getByLabel("Email Sekolah", { exact: true })
+            .evaluate((element) => element === document.activeElement),
+          true,
+        );
         assert.equal(await page.getByRole("button", { name: "Kirim Tautan Aktivasi", exact: true }).evaluate(el => getComputedStyle(el).backgroundColor), "rgb(23, 50, 77)");
         await page.getByRole("button", { name: "Kirim Tautan Aktivasi", exact: true }).click();
         await page.getByText("Masukkan email sekolah yang valid.").waitFor();
@@ -268,6 +322,9 @@ try {
       await page.screenshot({ path: path.join(artifacts, `school-${status.toLowerCase()}-${width}.png`), fullPage: true });
     }
     await page.getByRole("radio", { name: "Dinas", exact: true }).click();
+    await assertUnboxedPasswordToggle(
+      page.getByRole("button", { name: "Tampilkan kata sandi", exact: true }),
+    );
     assert.equal(await page.getByRole("link", { name: "Lupa kata sandi?" }).getAttribute("href"), "/auth/forgot-password");
     await page.getByRole("link", { name: "Lupa kata sandi?" }).click();
     const send = page.getByRole("button", { name: "Kirim tautan pemulihan" });

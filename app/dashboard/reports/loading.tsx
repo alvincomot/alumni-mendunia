@@ -1,6 +1,5 @@
 import {
   ChartSkeleton,
-  FilterSkeleton,
   PageSkeleton,
   SummarySkeleton,
   TableRowsSkeleton,
@@ -11,8 +10,7 @@ import { requireAccess } from "@/lib/auth/access";
 export default async function ReportsLoading() {
   await requireAccess(["admin_dinas", "viewer_dinas"]);
   return (
-    <PageSkeleton label="Memuat laporan alumni" action>
-      <FilterSkeleton fields={7} />
+    <PageSkeleton label="Memuat laporan alumni" action showHeader={false}>
       <SummarySkeleton cards={6} />
       <div aria-hidden="true" className="my-6 grid gap-6 xl:grid-cols-2">
         {Array.from({ length: 4 }, (_, index) => (

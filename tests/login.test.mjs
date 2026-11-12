@@ -415,6 +415,9 @@ test("school login keeps the resolved identity visible across activation and log
   );
   assert.match(source, /id="school-npsn"/);
   assert.match(source, /id="school-password"/);
+  assert.match(source, /passwordInput\.current\?\.focus\(\)/);
+  assert.match(source, /emailInput\.current\?\.focus\(\)/);
+  assert.match(source, /if \(!school \|\| pending\) return/);
   assert.match(source, /loginWithPassword\(parsed\.data\)/);
   assert.match(source, /\{school.name\}/);
   assert.match(source, /\{school.npsn\}/);

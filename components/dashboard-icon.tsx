@@ -8,6 +8,7 @@ export type DashboardIconName =
   | "users"
   | "chart"
   | "history"
+  | "activity"
   | "menu"
   | "close"
   | "search"
@@ -80,6 +81,7 @@ export function DashboardIcon({
         <path d="M3 3v5h5M12 7v5l3 2" />
       </>
     ),
+    activity: <path d="M3 12h4l2.5-6 5 12 2.5-6h4" />,
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
     search: (

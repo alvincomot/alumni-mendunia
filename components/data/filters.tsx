@@ -22,11 +22,13 @@ function FiltersContent({
   values,
   fields,
   inlineActions = false,
+  fixedValues = {},
 }: {
   path: string;
   values: Record<string, string>;
   fields: FilterField[];
   inlineActions?: boolean;
+  fixedValues?: Record<string, string>;
 }) {
   const router = useRouter();
   const [resetSession, setResetSession] = useState(0);
@@ -36,7 +38,7 @@ function FiltersContent({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(fixedValues);
     for (const [key, value] of formData.entries()) {
       const str = String(value).trim();
       if (str) params.set(key, str);
@@ -114,7 +116,11 @@ function FiltersContent({
         </Button>
         <Button asChild variant="outline" className="min-h-11">
           <Link
-            href={path}
+            href={
+              Object.keys(fixedValues).length
+                ? `${path}?${new URLSearchParams(fixedValues)}`
+                : path
+            }
             onClick={() => setResetSession((value) => value + 1)}
           >
             Reset

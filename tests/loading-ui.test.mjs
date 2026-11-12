@@ -17,6 +17,7 @@ test("every dashboard route shape has a context-specific loading boundary", () =
     "app/dashboard/users/loading.tsx": "TableSkeleton",
     "app/dashboard/reports/loading.tsx": "PageSkeleton",
     "app/dashboard/audit-logs/loading.tsx": "TableSkeleton",
+    "app/dashboard/monitoring/loading.tsx": "PageSkeleton",
   };
 
   for (const [file, component] of Object.entries(expected)) {
@@ -37,6 +38,30 @@ test("shared skeleton primitives expose accessible status and reduced motion", (
   assert.match(indicator, /motion-reduce:animate-none/);
 });
 
+test("top-level loading states mirror compact pages without report filters", () => {
+  for (const file of [
+    "app/dashboard/alumni/loading.tsx",
+    "app/dashboard/schools/loading.tsx",
+    "app/dashboard/users/loading.tsx",
+    "app/dashboard/reports/loading.tsx",
+  ])
+    assert.match(read(file), /showHeader=\{false\}/);
+
+  assert.doesNotMatch(
+    read("app/dashboard/monitoring/loading.tsx"),
+    /showHeader=\{false\}/,
+  );
+
+  assert.doesNotMatch(
+    read("app/dashboard/reports/loading.tsx"),
+    /FilterSkeleton/,
+  );
+  assert.doesNotMatch(
+    read("components/ui/loading/dashboard-skeleton.tsx"),
+    /className="mb-5 flex items-start gap-3"/,
+  );
+});
+
 test("role-specific loading boundaries authorize before rendering placeholders", () => {
   const expectations = [
     ["app/dashboard/alumni/new/loading.tsx", "petugas_sekolah"],
@@ -44,6 +69,7 @@ test("role-specific loading boundaries authorize before rendering placeholders",
     ["app/dashboard/users/loading.tsx", "admin_dinas"],
     ["app/dashboard/reports/loading.tsx", "viewer_dinas"],
     ["app/dashboard/audit-logs/loading.tsx", "admin_dinas"],
+    ["app/dashboard/monitoring/loading.tsx", "admin_dinas"],
   ];
   for (const [file, role] of expectations) {
     const source = read(file);

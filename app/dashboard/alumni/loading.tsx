@@ -7,6 +7,8 @@ export default function LoadingAlumni() {
       columns={7}
       rows={6}
       filterFields={4}
+      inlineFilterActions
+      showHeader={false}
       minWidth={950}
     />
   );

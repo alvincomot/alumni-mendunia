@@ -6,19 +6,28 @@ export function TableSkeleton({
   columns = 6,
   rows = 6,
   filterFields = 4,
+  inlineFilterActions = false,
   action = false,
+  showHeader = true,
   minWidth = 760,
 }: {
   label: string;
   columns?: number;
   rows?: number;
   filterFields?: number;
+  inlineFilterActions?: boolean;
   action?: boolean;
+  showHeader?: boolean;
   minWidth?: number;
 }) {
   return (
-    <PageSkeleton label={label} action={action}>
-      {filterFields > 0 && <FilterSkeleton fields={filterFields} />}
+    <PageSkeleton label={label} action={action} showHeader={showHeader}>
+      {filterFields > 0 && (
+        <FilterSkeleton
+          fields={filterFields}
+          inlineActions={inlineFilterActions}
+        />
+      )}
       <TableRowsSkeleton
         columns={columns}
         rows={rows}

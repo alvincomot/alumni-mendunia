@@ -104,16 +104,9 @@ export default async function UsersPage({
   const orphans = authUsers.filter((user) => !profileIds.has(user.id));
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="type-page-title text-primary">
-            Manajemen Pengguna
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Atur peran, penugasan sekolah, dan akses akun.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+      <h1 className="sr-only">Manajemen Pengguna</h1>
+      <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-3">
           <UserDialog
             schools={activeSchools}
             enabled={authAvailable && !invitationProblem}
@@ -176,6 +169,7 @@ export default async function UsersPage({
             ],
           },
         ]}
+        inlineActions
       />
       {rows.length === 0 ? (
         <p className="rounded-lg border bg-white p-6">

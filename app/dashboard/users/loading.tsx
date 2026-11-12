@@ -9,7 +9,9 @@ export default async function UsersLoading() {
       columns={6}
       rows={6}
       filterFields={4}
+      inlineFilterActions
       action
+      showHeader={false}
       minWidth={900}
     />
   );
