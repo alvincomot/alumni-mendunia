@@ -10,6 +10,7 @@ export default async function SchoolsLoading() {
       rows={6}
       filterFields={2}
       action={access.role === "admin_dinas"}
+      showHeader={false}
       minWidth={access.role === "admin_dinas" ? 960 : 680}
     />
   );
