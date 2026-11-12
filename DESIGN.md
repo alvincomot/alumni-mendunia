@@ -111,7 +111,7 @@ Admin Dinas:
 - Data Alumni
 - Data Sekolah
 - Manajemen Pengguna
-- Audit Log
+- Monitoring Sistem (termasuk tab Audit Log)
 
 Viewer Dinas:
 
