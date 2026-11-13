@@ -29,6 +29,11 @@ export function DashboardSidebar({ role }: { role: ApplicationRole }) {
   const links: NavigationItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
     { href: "/dashboard/alumni", label: "Data Alumni", icon: "alumni" },
+    {
+      href: "/dashboard/murid-aktif",
+      label: "Data Murid Aktif",
+      icon: "book",
+    },
     ...(role === "admin_dinas"
       ? [
           {
