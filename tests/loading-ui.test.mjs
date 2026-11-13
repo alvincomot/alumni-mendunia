@@ -18,6 +18,7 @@ test("every dashboard route shape has a context-specific loading boundary", () =
     "app/dashboard/reports/loading.tsx": "PageSkeleton",
     "app/dashboard/audit-logs/loading.tsx": "TableSkeleton",
     "app/dashboard/monitoring/loading.tsx": "PageSkeleton",
+    "app/dashboard/murid-aktif/loading.tsx": "PageSkeleton",
   };
 
   for (const [file, component] of Object.entries(expected)) {
