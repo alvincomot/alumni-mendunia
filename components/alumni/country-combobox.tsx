@@ -34,6 +34,7 @@ type CountryComboboxProps = {
   id?: string;
   required?: boolean;
   onBlur?: () => void;
+  portalContainer?: HTMLElement | null;
 };
 
 export const CountryCombobox = forwardRef<
@@ -53,6 +54,7 @@ export const CountryCombobox = forwardRef<
     id,
     required = false,
     onBlur,
+    portalContainer,
   },
   ref,
 ) {
@@ -129,6 +131,7 @@ export const CountryCombobox = forwardRef<
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        portalContainer={portalContainer}
         align="start"
         className="w-[var(--radix-popover-trigger-width)] min-w-[min(20rem,calc(100vw-2rem))] p-0"
       >
