@@ -443,6 +443,7 @@ try {
     "20261106000200_require_contract_end_date_on_completion.sql",
     "20261109000100_system_monitoring.sql",
     "20261112000100_active_students.sql",
+    "20261113000100_require_active_student_fields_and_fix_history.sql",
   ]) {
     // PGlite does not package pgcrypto; core PostgreSQL gen_random_uuid() is sufficient here.
     await db.exec(migrationSql(filename));
@@ -608,7 +609,7 @@ try {
           training_status,provider_name,placement_status,placement_country,
           placement_date,data_year)
           VALUES ('Murid Fiktif A','Teknik Kendaraan Ringan',10,true,true,
-            'belum_pelatihan',NULL,'belum','Jepang','2026-11-10',2026)
+            'belum_pelatihan','LKP Fiktif','belum','Jepang','2026-11-10',2026)
           RETURNING id,school_id,placement_country,placement_date,data_year`)
       ).rows[0];
       assert.equal(studentA.school_id, user(11));
@@ -621,8 +622,16 @@ try {
             [studentA.id],
           )
         ).rows[0].n,
-        2,
+        3,
       );
+      const initialHistory = (
+        await db.query(
+          "SELECT change_type,new_value,changed_by_name FROM public.get_active_student_history($1)",
+          [studentA.id],
+        )
+      ).rows;
+      assert.equal(initialHistory.length, 3);
+      assert.equal(initialHistory.every((row) => row.changed_by_name === "Petugas Fiktif A"), true);
 
       await db.query(`UPDATE public.active_students
         SET training_status='aktif_pelatihan',provider_name='LKP Fiktif',
@@ -669,7 +678,7 @@ try {
           full_name,skill_concentration,grade,kjp_status,parent_consent,
           training_status,provider_name,placement_status,placement_country,
           placement_date,data_year)
-          VALUES ('Murid Fiktif B','Kuliner',11,NULL,true,
+          VALUES ('Murid Fiktif B','Kuliner',11,false,true,
             'selesai_pelatihan','LKP Fiktif B','belum',NULL,NULL,2025)
           RETURNING id,school_id`)
       ).rows[0];
