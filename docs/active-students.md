@@ -28,8 +28,8 @@ sebagai dasar otorisasi.
 
 ### `public.active_students`
 
-Menyimpan identitas minimum murid, kelas, status KJP opsional, bukti konfirmasi
-persetujuan wali, status pelatihan, lembaga, status penempatan, negara/tanggal
+Menyimpan identitas minimum murid, kelas, status KJP, bukti konfirmasi
+persetujuan wali, status pelatihan, lembaga wajib, status penempatan, negara/tanggal
 penempatan kondisional, serta `data_year` sebagai Tahun Pendataan pertama.
 
 `data_year`, sekolah, bukti persetujuan, dan metadata pembuatan tidak dapat
@@ -61,4 +61,13 @@ Migration telah diterapkan ke hosted Supabase proyek `alumni-mendunia` dan
 riwayat lokal/remote diverifikasi sinkron pada 12 November 2026. Deployment
 source aplikasi tetap dilakukan terpisah setelah regression test dan review
 perubahan kode selesai.
+
+Migration lanjutan berikut diterapkan ke hosted Supabase pada 14 November 2026:
+
+`supabase/migrations/20261113000100_require_active_student_fields_and_fix_history.sql`
+
+Migration tersebut mewajibkan status KJP dan nama lembaga untuk penulisan baru,
+serta memperbaiki referensi kolom ambigu pada RPC riwayat. Validasi server dan
+fallback pembacaan riwayat tetap dipertahankan sebagai perlindungan saat terjadi
+kegagalan infrastruktur.
 
