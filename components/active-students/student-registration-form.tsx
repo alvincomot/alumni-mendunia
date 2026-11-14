@@ -368,16 +368,26 @@ function StudentRegistrationFormContent({
                   {errors.grade && <p className="text-sm text-red-800">{errors.grade.message}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="active-student-kjp">Status KJP (opsional)</Label>
+                  <Label htmlFor="active-student-kjp">Status KJP (wajib)</Label>
                   <select
                     id="active-student-kjp"
-                    {...register("kjp_status")}
+                    {...register("kjp_status", {
+                      onChange: () => clearField("kjp_status"),
+                    })}
                     className="form-control block min-h-12"
+                    required
+                    aria-invalid={Boolean(errors.kjp_status)}
+                    aria-describedby={errors.kjp_status ? "active-student-kjp-error" : undefined}
                   >
-                    <option value="">Belum dicatat</option>
+                    <option value="">Pilih status KJP</option>
                     <option value="ya">Ya</option>
                     <option value="tidak">Tidak</option>
                   </select>
+                  {errors.kjp_status && (
+                    <p id="active-student-kjp-error" className="text-sm text-red-800">
+                      {errors.kjp_status.message}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="active-student-year">Tahun Pendataan (wajib)</Label>
@@ -442,18 +452,24 @@ function StudentRegistrationFormContent({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="active-student-provider">
-                    Nama LKP / Sending Organization / P3MI
+                    Nama LKP / Sending Organization / P3MI (wajib)
                   </Label>
                   <Input
                     id="active-student-provider"
-                    {...register("provider_name")}
-                    placeholder="Masukkan nama lembaga jika ada"
+                    {...register("provider_name", {
+                      onChange: () => clearField("provider_name"),
+                    })}
+                    placeholder="Masukkan nama lembaga"
                     maxLength={200}
+                    required
                     className="min-h-12 bg-white"
                     aria-invalid={Boolean(errors.provider_name)}
+                    aria-describedby={errors.provider_name ? "active-student-provider-error" : undefined}
                   />
                   {errors.provider_name && (
-                    <p className="text-sm text-red-800">{errors.provider_name.message}</p>
+                    <p id="active-student-provider-error" className="text-sm text-red-800">
+                      {errors.provider_name.message}
+                    </p>
                   )}
                 </div>
                 <div className="space-y-2">
