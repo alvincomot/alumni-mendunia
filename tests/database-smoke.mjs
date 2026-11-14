@@ -442,6 +442,8 @@ try {
     "20261106000100_preserve_planned_departure_on_placement_edit.sql",
     "20261106000200_require_contract_end_date_on_completion.sql",
     "20261109000100_system_monitoring.sql",
+    "20261112000100_active_students.sql",
+    "20261113000100_require_active_student_fields_and_fix_history.sql",
   ]) {
     // PGlite does not package pgcrypto; core PostgreSQL gen_random_uuid() is sufficient here.
     await db.exec(migrationSql(filename));
@@ -558,6 +560,212 @@ try {
       await assert.rejects(
         db.query("SELECT public.record_app_pageview('/dashboard')"),
         /permission denied/,
+      );
+    },
+  );
+  await check(
+    "active students are school-scoped, Dinas read-only, historized and permanently deleted without PII snapshots",
+    async () => {
+      await as(3);
+      await assert.rejects(
+        db.query(`INSERT INTO public.active_students(
+          full_name,skill_concentration,grade,kjp_status,parent_consent,
+          training_status,provider_name,placement_status,placement_country,
+          placement_date,data_year)
+          VALUES ('Tanpa Persetujuan','Teknik',10,NULL,false,
+            'belum_pelatihan',NULL,'belum',NULL,NULL,2026)`),
+        /Persetujuan orang tua\/wali wajib dikonfirmasi/,
+      );
+      await assert.rejects(
+        db.query(`INSERT INTO public.active_students(
+          school_id,full_name,skill_concentration,grade,kjp_status,parent_consent,
+          training_status,provider_name,placement_status,placement_country,
+          placement_date,data_year)
+          VALUES ($1,'Lintas Sekolah','Teknik',10,NULL,true,
+            'belum_pelatihan',NULL,'belum',NULL,NULL,2026)`, [user(12)]),
+        /permission denied/,
+      );
+      await assert.rejects(
+        db.query(`INSERT INTO public.active_students(
+          full_name,skill_concentration,grade,kjp_status,parent_consent,
+          training_status,provider_name,placement_status,placement_country,
+          placement_date,data_year)
+          VALUES ('Status Tidak Valid','Teknik',10,NULL,true,
+            'status_buatan',NULL,'belum',NULL,NULL,2026)`),
+        /check constraint/,
+      );
+      await assert.rejects(
+        db.query(`INSERT INTO public.active_students(
+          full_name,skill_concentration,grade,kjp_status,parent_consent,
+          training_status,provider_name,placement_status,placement_country,
+          placement_date,data_year)
+          VALUES ('Penempatan Tidak Lengkap','Teknik',10,NULL,true,
+            'aktif_pelatihan',NULL,'sudah',NULL,NULL,2026)`),
+        /check constraint/,
+      );
+      const studentA = (
+        await db.query(`INSERT INTO public.active_students(
+          full_name,skill_concentration,grade,kjp_status,parent_consent,
+          training_status,provider_name,placement_status,placement_country,
+          placement_date,data_year)
+          VALUES ('Murid Fiktif A','Teknik Kendaraan Ringan',10,true,true,
+            'belum_pelatihan','LKP Fiktif','belum','Jepang','2026-11-10',2026)
+          RETURNING id,school_id,placement_country,placement_date,data_year`)
+      ).rows[0];
+      assert.equal(studentA.school_id, user(11));
+      assert.equal(studentA.placement_country, null);
+      assert.equal(studentA.placement_date, null);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.active_student_histories WHERE student_id=$1",
+            [studentA.id],
+          )
+        ).rows[0].n,
+        3,
+      );
+      const initialHistory = (
+        await db.query(
+          "SELECT change_type,new_value,changed_by_name FROM public.get_active_student_history($1)",
+          [studentA.id],
+        )
+      ).rows;
+      assert.equal(initialHistory.length, 3);
+      assert.equal(initialHistory.every((row) => row.changed_by_name === "Petugas Fiktif A"), true);
+
+      await db.query(`UPDATE public.active_students
+        SET training_status='aktif_pelatihan',provider_name='LKP Fiktif',
+            placement_status='sudah',placement_country='Jepang',
+            placement_date='2026-11-10'
+        WHERE id=$1`, [studentA.id]);
+      const updated = (
+        await db.query(
+          "SELECT training_status,placement_status,placement_country,placement_date,data_year FROM public.active_students WHERE id=$1",
+          [studentA.id],
+        )
+      ).rows[0];
+      assert.equal(updated.training_status, "aktif_pelatihan");
+      assert.equal(updated.placement_status, "sudah");
+      assert.equal(updated.placement_country, "Jepang");
+      assert.equal(updated.placement_date.toISOString().slice(0, 10), "2026-11-10");
+      assert.equal(updated.data_year, 2026);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.active_student_histories WHERE student_id=$1",
+            [studentA.id],
+          )
+        ).rows[0].n,
+        7,
+      );
+      await assert.rejects(
+        db.query("UPDATE public.active_students SET data_year=2027 WHERE id=$1", [studentA.id]),
+        /permission denied/,
+      );
+
+      await as(4);
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.active_students"))
+          .rows[0].n,
+        0,
+      );
+      await assert.rejects(
+        db.query("SELECT public.delete_active_student($1)", [studentA.id]),
+        /tidak ditemukan atau tidak diizinkan/,
+      );
+      const studentB = (
+        await db.query(`INSERT INTO public.active_students(
+          full_name,skill_concentration,grade,kjp_status,parent_consent,
+          training_status,provider_name,placement_status,placement_country,
+          placement_date,data_year)
+          VALUES ('Murid Fiktif B','Kuliner',11,false,true,
+            'selesai_pelatihan','LKP Fiktif B','belum',NULL,NULL,2025)
+          RETURNING id,school_id`)
+      ).rows[0];
+      assert.equal(studentB.school_id, user(12));
+
+      await as(1);
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.active_students"))
+          .rows[0].n,
+        2,
+      );
+      await assert.rejects(
+        db.query("SELECT public.delete_active_student($1)", [studentA.id]),
+        /tidak ditemukan atau tidak diizinkan/,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "UPDATE public.active_students SET grade=12 WHERE id=$1 RETURNING id",
+            [studentA.id],
+          )
+        ).rows.length,
+        0,
+      );
+
+      await as(2);
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.active_students"))
+          .rows[0].n,
+        2,
+      );
+      await assert.rejects(
+        db.query("SELECT public.delete_active_student($1)", [studentA.id]),
+        /tidak ditemukan atau tidak diizinkan/,
+      );
+
+      await as(3);
+      const alumniBefore = (
+        await db.query("SELECT count(*)::int AS n FROM public.alumni")
+      ).rows[0].n;
+      const profilesBefore = (
+        await db.query("SELECT count(*)::int AS n FROM public.profiles")
+      ).rows[0].n;
+      assert.equal(
+        (await db.query("SELECT public.delete_active_student($1) AS id", [studentA.id]))
+          .rows[0].id,
+        studentA.id,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT count(*)::int AS n FROM public.active_student_histories WHERE student_id=$1",
+            [studentA.id],
+          )
+        ).rows[0].n,
+        0,
+      );
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.alumni")).rows[0]
+          .n,
+        alumniBefore,
+      );
+      assert.equal(
+        (await db.query("SELECT count(*)::int AS n FROM public.profiles"))
+          .rows[0].n,
+        profilesBefore,
+      );
+      await as(1);
+      const deletionAudit = (
+        await db.query(`SELECT actor_id,action,entity_type,entity_id,school_id
+          FROM public.audit_logs
+          WHERE entity_type='active_students' AND action='DELETE' AND entity_id=$1`, [studentA.id])
+      ).rows[0];
+      assert.deepEqual(deletionAudit, {
+        actor_id: user(3),
+        action: "DELETE",
+        entity_type: "active_students",
+        entity_id: studentA.id,
+        school_id: user(11),
+      });
+      assert.deepEqual(
+        (
+          await db.query(`SELECT column_name FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='audit_logs'
+            AND column_name IN ('full_name','snapshot','old_value','new_value')`)
+        ).rows,
+        [],
       );
     },
   );

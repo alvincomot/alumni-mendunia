@@ -3,7 +3,14 @@ import { optionalDateSchema } from "@/lib/alumni/schema";
 
 export const auditFilterSchema = z
   .object({
-    entity: z.enum(["", "schools", "profiles", "alumni", "placements"]),
+    entity: z.enum([
+      "",
+      "schools",
+      "profiles",
+      "alumni",
+      "placements",
+      "active_students",
+    ]),
     action: z.enum(["", "INSERT", "UPDATE", "DELETE"]),
     actor: z.union([z.uuid(), z.literal("")]),
     id: z.union([z.uuid(), z.literal("")]),

@@ -47,6 +47,7 @@ const mocks = {
   "@/lib/schools/access": `export {access as getSchoolAccess} from 'fixture:data'`,
   "@/lib/alumni/access": `export {access as getAlumniAccess} from 'fixture:data'`,
   "@/lib/monitoring/data": `import {alumni,history} from 'fixture:data';export async function loadMonitoring(){return window.fixture.empty?[]:alumni}export async function loadRecentActivity(){return window.fixture.empty?[]:history.map(h=>({...h,placements:{alumni:alumni[0]}}))}`,
+  "@/lib/active-students/data": `export async function loadActiveStudentDashboardSummary(){window.fixture.activeStudentReads++;if(window.fixture.activeStudentError)throw Error('Fixture active student summary failure');return window.fixture.empty?{total:0,activeTraining:0,completedTraining:0,placed:0}:{total:4,activeTraining:2,completedTraining:1,placed:1}}`,
   "@/lib/system-monitoring/data": `export async function loadSystemMonitoringSummary(){const empty=window.fixture.empty;return {available:true,data:{generated_at:'2026-11-09T08:00:00.000Z',range:{from:'2026-11-03',to:'2026-11-09'},traffic:{total:empty?0:18,today:empty?0:4,last_7_days:empty?0:12,last_30_days:empty?0:18,selected_period:empty?0:12,trend:empty?[]:[{day:'2026-11-03',count:1},{day:'2026-11-04',count:0},{day:'2026-11-05',count:2},{day:'2026-11-06',count:1},{day:'2026-11-07',count:2},{day:'2026-11-08',count:2},{day:'2026-11-09',count:4}],top_paths:empty?[]:[{path:'/dashboard/alumni',count:7},{path:'/dashboard',count:5}]},schools:{total:empty?0:5,active_accounts:empty?0:1,not_activated:empty?0:2,pending_activation:empty?0:1,suspended:empty?0:2,activation_percentage:empty?0:20,schools_with_changes_7_days:empty?0:1,schools_with_changes_30_days:empty?0:1},features:{alumni_created:empty?0:2,alumni_updated:empty?0:1,placement_changes:empty?0:2,departure_confirmations:empty?0:1,school_management:empty?0:1,user_management:empty?0:1}}}} export async function loadRecentMonitoringActivity(){return window.fixture.empty?[]:[{id:'audit-1',action:'INSERT',entityType:'alumni',actorName:'Admin Dinas',occurredAt:'2026-11-09T08:00:00.000Z'}]} export async function checkSystemHealth(){return {databaseAvailable:true,checkedAt:'2026-11-09T08:00:00.000Z',durationMilliseconds:12}}`,
   "@/lib/alumni/history": `import {history} from 'fixture:data';export async function getPlacementHistory(){return {available:true,entries:history}}`,
   "@/lib/users/admin": `import {profiles} from 'fixture:data';export function createAdminClient(){window.fixture.adminReads++;return {async rpc(name,{p_npsn}){return {data:{name:'SMK Fiktif',npsn:p_npsn,status:({'00000001':'ACTIVE','00000002':'SUSPENDED','00000003':'UNCLAIMED','00000004':'PENDING_ACTIVATION','00000005':'SUSPENDED'})[p_npsn],retry_after:null},error:window.fixture.statusFail?{}:null}}}} export function invitationRedirect(){return 'http://fixture/auth/confirm'}export function administrationMessage(){return 'Fixture unavailable'}export async function listAuthUsers(){return profiles.map(p=>({id:p.user_id,email:p.role+'@example.test'}))}`,
@@ -91,7 +92,7 @@ const compiled = await build({
     import {id} from 'fixture:data';
     const params=new URL(location.href).searchParams,view=params.get('view')||'dashboard';
     const paths={dashboard:'/dashboard',alumni:'/dashboard/alumni',schools:'/dashboard/schools',users:'/dashboard/users',reports:'/dashboard/reports',monitoring:'/dashboard/monitoring',audit:'/dashboard/monitoring',health:'/dashboard/monitoring',detail:'/dashboard/alumni/'+id(20),registration:'/dashboard/alumni/new'};
-    window.fixture={view,path:paths[view]||'/dashboard',empty:params.has('empty'),viewer:params.has('viewer'),statusFail:params.has('status-fail'),adminReads:0,schoolChanges:[],accountChanges:[],placementUpdates:[],staff:view==='registration'||(view==='detail'&&!params.has('viewer'))};
+    window.fixture={view,path:paths[view]||'/dashboard',empty:params.has('empty'),viewer:params.has('viewer'),statusFail:params.has('status-fail'),activeStudentError:params.has('active-student-error'),activeStudentReads:0,adminReads:0,schoolChanges:[],accountChanges:[],placementUpdates:[],staff:params.has('staff')||view==='registration'||(view==='detail'&&!params.has('viewer'))};
     const pages={dashboard:Dashboard,alumni:Alumni,schools:Schools,users:Users,reports:Reports,monitoring:Monitoring,audit:Monitoring,health:Monitoring,detail:Detail,registration:NewAlumni};
     const loadings={dashboard:DashboardLoading,alumni:AlumniLoading,schools:SchoolsLoading,users:UsersLoading,reports:ReportsLoading,monitoring:MonitoringLoading,audit:MonitoringLoading,health:MonitoringLoading};
     async function resolve(el){
@@ -381,6 +382,21 @@ try {
         assert.equal(await resetLink.getAttribute("href"), "/dashboard/users");
       }
       if (view === "dashboard") {
+        await page
+          .getByText("Top SMK Pengirim", { exact: true })
+          .waitFor();
+        assert.equal(
+          await page
+            .getByText("Ringkasan Murid Aktif", { exact: true })
+            .count(),
+          0,
+          "Dinas dashboard keeps the school ranking",
+        );
+        assert.equal(
+          await page.evaluate(() => window.fixture.activeStudentReads),
+          0,
+          "Dinas dashboard does not read school active-student counts",
+        );
         if (width < 1024) {
           const trigger = page.getByRole("button", { name: "Buka navigasi" });
           await trigger.focus();
@@ -895,6 +911,111 @@ try {
         );
       }
     }
+    await page.goto(`${base}/?view=dashboard&staff`);
+    const activeStudentPanel = page
+      .locator("section")
+      .filter({
+        has: page.getByRole("heading", {
+          name: "Ringkasan Murid Aktif",
+          exact: true,
+        }),
+      });
+    await activeStudentPanel.waitFor();
+    assert.equal(
+      await page.getByText("Top SMK Pengirim", { exact: true }).count(),
+      0,
+      "Petugas dashboard replaces the school ranking",
+    );
+    await activeStudentPanel
+      .getByText("Murid berminat ke luar negeri", { exact: true })
+      .waitFor();
+    for (const label of [
+      "Aktif pelatihan",
+      "Selesai pelatihan",
+      "Sudah mendapat penempatan",
+    ])
+      await activeStudentPanel.getByText(label, { exact: true }).waitFor();
+    assert.equal(
+      await activeStudentPanel
+        .getByRole("link", { name: "Lihat Data Murid Aktif", exact: true })
+        .getAttribute("href"),
+      "/dashboard/murid-aktif",
+    );
+    assert.equal(
+      await page.evaluate(() => window.fixture.activeStudentReads),
+      1,
+      "Petugas dashboard reads the active-student summary once",
+    );
+    if (width >= 1024) {
+      const cohort = await page
+        .getByRole("heading", { name: "Berdasarkan Angkatan", exact: true })
+        .locator("..")
+        .locator("..")
+        .boundingBox();
+      const summary = await activeStudentPanel.boundingBox();
+      assert.ok(cohort && summary);
+      assert.ok(
+        Math.abs(cohort.y - summary.y) < 2 && summary.x > cohort.x,
+        "desktop active-student summary stays right of cohort ranking",
+      );
+    }
+    await check(`dashboard-school-active-students-${width}`);
+    await activeStudentPanel
+      .getByRole("link", { name: "Lihat Data Murid Aktif", exact: true })
+      .click();
+    await page.waitForLoadState("networkidle");
+    assert.equal(
+      new URL(page.url()).pathname,
+      "/dashboard/murid-aktif",
+      "active-student summary link opens the module route",
+    );
+
+    await page.goto(`${base}/?view=dashboard&staff&empty`);
+    await page
+      .getByText("Belum ada data murid aktif.", { exact: true })
+      .waitFor();
+    assert.equal(
+      await page
+        .getByRole("link", { name: "Tambah Murid", exact: true })
+        .getAttribute("href"),
+      "/dashboard/murid-aktif/new",
+    );
+    await check(`dashboard-school-active-students-empty-${width}`);
+    await page
+      .getByRole("link", { name: "Tambah Murid", exact: true })
+      .click();
+    await page.waitForLoadState("networkidle");
+    assert.equal(
+      new URL(page.url()).pathname,
+      "/dashboard/murid-aktif/new",
+      "empty-state action opens the active-student registration route",
+    );
+
+    await page.goto(`${base}/?view=dashboard&staff&active-student-error`);
+    await page
+      .getByText("Ringkasan murid belum dapat ditampilkan.", { exact: true })
+      .waitFor();
+    await page
+      .getByText("Sebaran Negara Tujuan", { exact: true })
+      .waitFor();
+    await check(`dashboard-school-active-students-error-${width}`);
+
+    await page.goto(`${base}/?view=dashboard&viewer`);
+    await page.getByText("Top SMK Pengirim", { exact: true }).waitFor();
+    assert.equal(
+      await page
+        .getByText("Ringkasan Murid Aktif", { exact: true })
+        .count(),
+      0,
+      "Viewer Dinas keeps the school ranking",
+    );
+    assert.equal(
+      await page.evaluate(() => window.fixture.activeStudentReads),
+      0,
+      "Viewer Dinas does not read school active-student counts",
+    );
+    await check(`dashboard-viewer-school-ranking-${width}`);
+
     await page.goto(`${base}/?view=detail&active`);
     const activeEditor = page.getByRole("button", {
       name: "Edit penempatan",

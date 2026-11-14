@@ -16,6 +16,7 @@ const entities = {
   profiles: "Profil pengguna",
   alumni: "Alumni",
   placements: "Penempatan",
+  active_students: "Murid aktif",
 };
 
 function textValue(raw: SearchParams, key: string) {
@@ -97,7 +98,8 @@ export async function AuditLogPanel({
   const schoolIds = entityIds("schools");
   const alumniIds = entityIds("alumni");
   const placementIds = entityIds("placements");
-  const [schoolsResult, alumniResult, placementsResult] = await Promise.all([
+  const activeStudentIds = entityIds("active_students");
+  const [schoolsResult, alumniResult, placementsResult, activeStudentsResult] = await Promise.all([
     schoolIds.length
       ? access.supabase.from("schools").select("id, name").in("id", schoolIds)
       : Promise.resolve({ data: [], error: null }),
@@ -109,6 +111,12 @@ export async function AuditLogPanel({
           .from("placements")
           .select("id, alumni_id")
           .in("id", placementIds)
+      : Promise.resolve({ data: [], error: null }),
+    activeStudentIds.length
+      ? access.supabase
+          .from("active_students")
+          .select("id, full_name")
+          .in("id", activeStudentIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const placementAlumniIds = (placementsResult.data ?? []).map(
@@ -140,6 +148,12 @@ export async function AuditLogPanel({
         : "Penempatan tidak tersedia",
     ]),
   );
+  const activeStudentNames = new Map(
+    (activeStudentsResult.data ?? []).map((student) => [
+      student.id,
+      student.full_name,
+    ]),
+  );
 
   function objectName(entity: string, id: string) {
     if (entity === "schools") return schoolNames.get(id) ?? "Sekolah tidak tersedia";
@@ -148,6 +162,8 @@ export async function AuditLogPanel({
     if (entity === "alumni") return alumniNames.get(id) ?? "Alumni tidak tersedia";
     if (entity === "placements")
       return placementNames.get(id) ?? "Penempatan tidak tersedia";
+    if (entity === "active_students")
+      return activeStudentNames.get(id) ?? "Murid sudah dihapus atau tidak tersedia";
     return "Objek tidak tersedia";
   }
 

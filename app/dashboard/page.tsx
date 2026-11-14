@@ -12,6 +12,11 @@ import { MonitoringFilterForm } from "@/components/monitoring/filters";
 import { DashboardSummary } from "@/components/monitoring/summary";
 import { CountryChart } from "@/components/monitoring/country-chart";
 import { DashboardRanking } from "@/components/monitoring/dashboard-ranking";
+import {
+  ActiveStudentDashboardPanel,
+  type ActiveStudentDashboardState,
+} from "@/components/active-students/dashboard-summary";
+import { loadActiveStudentDashboardSummary } from "@/lib/active-students/data";
 import { Button } from "@/components/ui/button";
 import {
   statusLabels,
@@ -55,6 +60,7 @@ export default async function Dashboard({
   searchParams: Promise<SearchParams>;
 }) {
   const access = await requireAccess();
+  const isSchoolStaff = access.role === "petugas_sekolah";
   const filters = parseFilters(await searchParams);
   if (access.canWrite) filters.school = "";
 
@@ -73,16 +79,23 @@ export default async function Dashboard({
           throw new Error("School statistics unavailable");
         return { total: total.count ?? 0, active: active.count ?? 0 };
       });
-  const [all, recent, schoolCounts] = await Promise.all([
+  const activeStudentSummaryPromise: Promise<ActiveStudentDashboardState | null> =
+    isSchoolStaff
+      ? loadActiveStudentDashboardSummary(access)
+          .then((summary) => ({ status: "ready" as const, summary }))
+          .catch(() => ({ status: "error" as const }))
+      : Promise.resolve(null);
+  const [all, recent, schoolCounts, activeStudentState] = await Promise.all([
     loadMonitoring(access),
     loadRecentActivity(access, filters),
     schoolCountsPromise,
+    activeStudentSummaryPromise,
   ]);
   const rows = filterRows(all, filters);
   const confirmedPlacementRows = securedPlacementRows(rows);
   const countries = distribution(confirmedPlacementRows, "country");
   const years = distribution(rows, "year");
-  const schools = distribution(rows, "school");
+  const schools = isSchoolStaff ? [] : distribution(rows, "school");
   const hasActiveFilters = Object.entries(filters).some(([key, value]) =>
     key === "sort" ? value !== "name" : Boolean(value),
   );
@@ -170,16 +183,20 @@ export default async function Dashboard({
           rows={years}
           variant="year"
         />
-        <DashboardRanking
-          title="Top SMK Pengirim"
-          description={
-            schoolCounts
-              ? `${schoolCounts.total.toLocaleString("id-ID")} sekolah terdaftar, ${schoolCounts.active.toLocaleString("id-ID")} aktif.`
-              : "Distribusi alumni pada sekolah Anda."
-          }
-          rows={schools}
-          variant="school"
-        />
+        {isSchoolStaff && activeStudentState ? (
+          <ActiveStudentDashboardPanel state={activeStudentState} />
+        ) : (
+          <DashboardRanking
+            title="Top SMK Pengirim"
+            description={
+              schoolCounts
+                ? `${schoolCounts.total.toLocaleString("id-ID")} sekolah terdaftar, ${schoolCounts.active.toLocaleString("id-ID")} aktif.`
+                : undefined
+            }
+            rows={schools}
+            variant="school"
+          />
+        )}
 
         <DashboardPanel
           title="Aktivitas Status Terbaru"
