@@ -55,6 +55,16 @@ const valid = {
 test("active student validation requires parent consent and exact status values", () => {
   assert.equal(schema.activeStudentFormSchema.safeParse(valid).success, true);
   assert.equal(
+    schema.activeStudentFormSchema.safeParse({ ...valid, kjp_status: "" })
+      .success,
+    false,
+  );
+  assert.equal(
+    schema.activeStudentFormSchema.safeParse({ ...valid, provider_name: "" })
+      .success,
+    false,
+  );
+  assert.equal(
     schema.activeStudentFormSchema.safeParse({ ...valid, parent_consent: false })
       .success,
     false,
@@ -186,8 +196,224 @@ test("server actions derive authorization from access and use guarded hard delet
   assert.match(actions, /\.eq\("school_id", access\.schoolId\)/u);
   assert.match(actions, /\.eq\("data_year", dataYear\)/u);
   assert.match(actions, /\.eq\("updated_at", expectedUpdatedAt/u);
+  assert.match(actions, /\.update\(values, \{ count: "exact" \}\)/u);
+  assert.match(actions, /active_student_histories/u);
   assert.match(actions, /"delete_active_student"/u);
   assert.doesNotMatch(actions, /service_role|createAdminClient/u);
+});
+
+test("dashboard summary counts only the authenticated petugas school", async () => {
+  const schoolA = "00000000-0000-4000-8000-000000000011";
+  const schoolB = "00000000-0000-4000-8000-000000000012";
+  const rows = [
+    {
+      school_id: schoolA,
+      training_status: "aktif_pelatihan",
+      placement_status: "belum",
+    },
+    {
+      school_id: schoolA,
+      training_status: "selesai_pelatihan",
+      placement_status: "sudah",
+    },
+    {
+      school_id: schoolA,
+      training_status: "belum_pelatihan",
+      placement_status: "belum",
+    },
+    {
+      school_id: schoolB,
+      training_status: "aktif_pelatihan",
+      placement_status: "sudah",
+    },
+  ];
+  const calls = [];
+  const supabase = {
+    from(table) {
+      assert.equal(table, "active_students");
+      const filters = [];
+      const query = {
+        select(columns, options) {
+          assert.equal(columns, "id");
+          assert.deepEqual(options, { count: "exact", head: true });
+          return query;
+        },
+        eq(column, value) {
+          filters.push([column, value]);
+          return query;
+        },
+        then(resolve) {
+          calls.push(filters);
+          const count = rows.filter((row) =>
+            filters.every(([column, value]) => row[column] === value),
+          ).length;
+          return Promise.resolve({ count, error: null }).then(resolve);
+        },
+      };
+      return query;
+    },
+  };
+  const data = load("lib/active-students/data.ts", {
+    "server-only": {},
+    "@/lib/data/read-all": { readAllRows() {} },
+    "./model": { activeStudentRowsSchema: { parse: (value) => value } },
+  });
+  const access = { canWrite: true, schoolId: schoolA, supabase };
+
+  assert.deepEqual(await data.loadActiveStudentDashboardSummary(access), {
+    total: 3,
+    activeTraining: 1,
+    completedTraining: 1,
+    placed: 1,
+  });
+  assert.equal(calls.length, 4);
+  assert.equal(
+    calls.every((filters) =>
+      filters.some(
+        ([column, value]) => column === "school_id" && value === schoolA,
+      ),
+    ),
+    true,
+  );
+
+  rows.splice(0, 1);
+  assert.deepEqual(await data.loadActiveStudentDashboardSummary(access), {
+    total: 2,
+    activeTraining: 0,
+    completedTraining: 1,
+    placed: 1,
+  });
+  await assert.rejects(
+    () =>
+      data.loadActiveStudentDashboardSummary({
+        canWrite: false,
+        schoolId: schoolA,
+        supabase,
+      }),
+    /School-scoped active student access unavailable/u,
+  );
+});
+
+test("edit action accepts one guarded update and rejects a stale update", async () => {
+  let count = 1;
+  let updateCalls = 0;
+  const updateQuery = {
+    eq() {
+      return this;
+    },
+    then(resolve) {
+      resolve({ data: null, error: null, count });
+    },
+  };
+  const supabase = {
+    from(table) {
+      assert.equal(table, "active_students");
+      return {
+        update(values, options) {
+          updateCalls++;
+          assert.equal(values.full_name, "Murid Fiktif Diperbarui");
+          assert.deepEqual(options, { count: "exact" });
+          return updateQuery;
+        },
+      };
+    },
+  };
+  const actions = load("app/dashboard/murid-aktif/actions.ts", {
+    "next/cache": { revalidatePath() {} },
+    "@/lib/alumni/access": {
+      async getAlumniAccess() {
+        return {
+          allowed: true,
+          canWrite: true,
+          schoolId: "00000000-0000-4000-8000-000000000011",
+          userId: "00000000-0000-4000-8000-000000000003",
+          fullName: "Petugas Fiktif",
+          supabase,
+        };
+      },
+    },
+    "@/lib/active-students/schema": schema,
+  });
+  const input = {
+    ...valid,
+    full_name: "Murid Fiktif Diperbarui",
+    expected_updated_at: "2026-11-13T01:32:00.622173+00:00",
+  };
+  const id = "00000000-0000-4000-8000-000000000101";
+  assert.deepEqual(await actions.saveActiveStudent(id, input), {
+    success: true,
+    id,
+    message: "Data murid berhasil diperbarui.",
+  });
+  count = 0;
+  assert.deepEqual(await actions.saveActiveStudent(id, input), {
+    success: false,
+    refresh: true,
+    message:
+      "Data sudah berubah atau Tahun Pendataan tidak cocok. Muat ulang sebelum mengedit kembali.",
+  });
+  assert.equal(updateCalls, 2);
+});
+
+test("history action falls back to the RLS table while the broken RPC is unapplied", async () => {
+  const historyQuery = {
+    select() {
+      return this;
+    },
+    eq() {
+      return this;
+    },
+    order() {
+      return this;
+    },
+    then(resolve) {
+      resolve({
+        error: null,
+        data: [
+          {
+            id: "00000000-0000-4000-8000-000000000201",
+            student_id: "00000000-0000-4000-8000-000000000101",
+            change_type: "training_status",
+            old_value: null,
+            new_value: "aktif_pelatihan",
+            changed_by: "00000000-0000-4000-8000-000000000003",
+            changed_at: "2026-11-13T01:32:00.622173+00:00",
+          },
+        ],
+      });
+    },
+  };
+  const supabase = {
+    async rpc() {
+      return { data: null, error: { code: "42702" } };
+    },
+    from(table) {
+      assert.equal(table, "active_student_histories");
+      return historyQuery;
+    },
+  };
+  const actions = load("app/dashboard/murid-aktif/actions.ts", {
+    "next/cache": { revalidatePath() {} },
+    "@/lib/alumni/access": {
+      async getAlumniAccess() {
+        return {
+          allowed: true,
+          canWrite: true,
+          schoolId: "00000000-0000-4000-8000-000000000011",
+          userId: "00000000-0000-4000-8000-000000000003",
+          fullName: "Petugas Fiktif",
+          supabase,
+        };
+      },
+    },
+    "@/lib/active-students/schema": schema,
+  });
+  const result = await actions.getActiveStudentHistory(
+    "00000000-0000-4000-8000-000000000101",
+  );
+  assert.equal(result.success, true);
+  assert.equal(result.history.length, 1);
+  assert.equal(result.history[0].changed_by_name, "Petugas Fiktif");
 });
 
 test("read-only Dinas UI has detail access without edit or delete actions", () => {
@@ -212,6 +438,25 @@ test("active student creation uses the two-step registration page", () => {
   assert.match(form, /Pelatihan dan Penempatan/u);
   assert.match(form, /Ringkasan Input/u);
   assert.match(form, /saveActiveStudent\(null, input\)/u);
+});
+
+test("school dashboard replaces the school ranking with an active student summary", () => {
+  const dashboard = source("app/dashboard/page.tsx");
+  const panel = source("components/active-students/dashboard-summary.tsx");
+  const actions = source("app/dashboard/murid-aktif/actions.ts");
+  assert.match(dashboard, /access\.role === "petugas_sekolah"/u);
+  assert.match(dashboard, /loadActiveStudentDashboardSummary\(access\)/u);
+  assert.match(dashboard, /<ActiveStudentDashboardPanel/u);
+  assert.match(dashboard, /title="Top SMK Pengirim"/u);
+  assert.match(panel, /Ringkasan Murid Aktif/u);
+  assert.match(panel, /Murid berminat ke luar negeri/u);
+  assert.match(panel, /Aktif pelatihan/u);
+  assert.match(panel, /Selesai pelatihan/u);
+  assert.match(panel, /Sudah mendapat penempatan/u);
+  assert.match(panel, /href="\/dashboard\/murid-aktif"/u);
+  assert.match(panel, /Belum ada data murid aktif\./u);
+  assert.match(panel, /Ringkasan murid belum dapat ditampilkan\./u);
+  assert.match(actions, /revalidatePath\("\/dashboard"\)/u);
 });
 
 test("country options render inside the native active-student dialog", () => {
@@ -240,6 +485,16 @@ test("migration protects school scope, immutable year, history and PII-free dele
     ),
     /full_name|to_jsonb\(v_row\)|snapshot/u,
   );
+});
+
+test("forward migration requires KJP and provider and fixes qualified history lookup", () => {
+  const migration = source(
+    "supabase/migrations/20261113000100_require_active_student_fields_and_fix_history.sql",
+  );
+  assert.match(migration, /CHECK \(kjp_status IS NOT NULL\) NOT VALID/u);
+  assert.match(migration, /provider_name IS NOT NULL/u);
+  assert.match(migration, /WHERE student\.id = p_student_id/u);
+  assert.match(migration, /WHERE history\.student_id = p_student_id/u);
 });
 
 test("navigation, audit filtering and privacy-safe monitoring recognize the new module", () => {
