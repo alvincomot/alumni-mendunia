@@ -52,7 +52,9 @@ export const activeStudentIdentitySchema = z.object({
       .int()
       .min(10, "Kelas harus 10, 11, 12, atau 13.")
       .max(13, "Kelas harus 10, 11, 12, atau 13."),
-    kjp_status: z.enum(["", "ya", "tidak"]),
+    kjp_status: z
+      .union([z.literal(""), z.literal("ya"), z.literal("tidak")])
+      .refine((value) => value !== "", "Status KJP wajib dipilih."),
     data_year: z.coerce
       .number({ error: "Tahun Pendataan wajib berupa angka." })
       .int("Tahun Pendataan harus berupa bilangan bulat.")
@@ -73,6 +75,7 @@ export const activeStudentFormSchema = activeStudentIdentitySchema
     provider_name: z
       .string()
       .trim()
+      .min(1, "Nama LKP / Sending Organization / P3MI wajib diisi.")
       .max(200, "Nama lembaga maksimal 200 karakter."),
     placement_status: z.enum(["belum", "sudah"]),
     placement_country: z.string().trim(),
@@ -105,9 +108,8 @@ export const activeStudentFormSchema = activeStudentIdentitySchema
   })
   .transform((value) => ({
     ...value,
-    kjp_status:
-      value.kjp_status === "" ? null : value.kjp_status === "ya",
-    provider_name: value.provider_name || null,
+    kjp_status: value.kjp_status === "ya",
+    provider_name: value.provider_name,
     placement_country:
       value.placement_status === "sudah"
         ? getCanonicalCountryName(value.placement_country)
