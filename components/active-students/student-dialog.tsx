@@ -241,12 +241,20 @@ function StudentDialogContent({
                   {error("grade") && <p className="text-sm text-red-800">{error("grade")}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`${identity}-kjp`}>Status KJP (opsional)</Label>
-                  <select {...register("kjp_status")} id={`${identity}-kjp`} className="form-control">
-                    <option value="">Belum dicatat</option>
+                  <Label htmlFor={`${identity}-kjp`}>Status KJP (wajib)</Label>
+                  <select
+                    {...register("kjp_status", { onChange: () => clearField("kjp_status") })}
+                    id={`${identity}-kjp`}
+                    className="form-control"
+                    required
+                    aria-invalid={Boolean(error("kjp_status"))}
+                    aria-describedby={error("kjp_status") ? `${identity}-kjp-error` : undefined}
+                  >
+                    <option value="">Pilih status KJP</option>
                     <option value="ya">Ya</option>
                     <option value="tidak">Tidak</option>
                   </select>
+                  {error("kjp_status") && <p id={`${identity}-kjp-error`} className="text-sm text-red-800">{error("kjp_status")}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`${identity}-year`}>Tahun Pendataan (wajib)</Label>
@@ -284,8 +292,16 @@ function StudentDialogContent({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`${identity}-provider`}>Nama LKP / Sending Organization / P3MI</Label>
-                  <Input {...register("provider_name")} id={`${identity}-provider`} maxLength={200} />
+                  <Label htmlFor={`${identity}-provider`}>Nama LKP / Sending Organization / P3MI (wajib)</Label>
+                  <Input
+                    {...register("provider_name", { onChange: () => clearField("provider_name") })}
+                    id={`${identity}-provider`}
+                    maxLength={200}
+                    required
+                    aria-invalid={Boolean(error("provider_name"))}
+                    aria-describedby={error("provider_name") ? `${identity}-provider-error` : undefined}
+                  />
+                  {error("provider_name") && <p id={`${identity}-provider-error`} className="text-sm text-red-800">{error("provider_name")}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`${identity}-placement-status`}>Sudah mendapat penempatan? (wajib)</Label>
