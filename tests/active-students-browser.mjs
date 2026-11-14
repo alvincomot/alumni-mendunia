@@ -197,9 +197,13 @@ try {
   await page.getByLabel("Nama murid (wajib)").fill("Citra Fiktif");
   await page.getByLabel("Konsentrasi keahlian (wajib)").fill("Desain Komunikasi Visual");
   await page.getByRole("button", { name: "Lanjut ke pelatihan" }).click();
+  await page.getByText("Status KJP wajib dipilih.").waitFor();
+  await page.getByLabel("Status KJP (wajib)").selectOption("tidak");
+  await page.getByRole("button", { name: "Lanjut ke pelatihan" }).click();
   await page.getByRole("heading", { name: "Pelatihan dan Penempatan" }).waitFor();
   await page.getByRole("button", { name: "Simpan Murid", exact: true }).click();
-  await page.getByText("Persetujuan orang tua/wali wajib dikonfirmasi.").waitFor();
+  await page.getByText("Nama LKP / Sending Organization / P3MI wajib diisi.").waitFor();
+  await page.getByLabel("Nama LKP / Sending Organization / P3MI (wajib)").fill("LKP Fiktif Baru");
   await page.getByLabel(/Saya menyatakan/u).check();
   await page.getByLabel("Sudah mendapat penempatan? (wajib)").selectOption("sudah");
   const country = page.getByRole("combobox", { name: "Negara penempatan", exact: true });
@@ -233,7 +237,14 @@ try {
   await page.getByRole("button", { name: "Edit Ayu Fiktif" }).click();
   const edit = page.getByRole("dialog", { name: "Edit data murid" });
   assert.equal(await edit.getByLabel("Tahun Pendataan (wajib)").getAttribute("readonly"), "");
-  await edit.getByRole("button", { name: "Batal" }).click();
+  await edit.getByLabel("Nama murid (wajib)").fill("Ayu Fiktif Diperbarui");
+  await edit.getByRole("button", { name: "Simpan" }).click();
+  await page.getByText("Data murid berhasil diperbarui.", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.fixture.saves), 1);
+  assert.equal(
+    await page.evaluate(() => window.fixture.lastSave.input.full_name),
+    "Ayu Fiktif Diperbarui",
+  );
 
   await page.getByRole("button", { name: "Hapus permanen Ayu Fiktif" }).click();
   const deletion = page.getByRole("dialog", { name: "Hapus data murid permanen?" });
