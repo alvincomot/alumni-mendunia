@@ -56,20 +56,30 @@ export async function saveActiveStudent(
       data_year: dataYear,
     };
 
-    const query =
-      id === null
-        ? access.supabase.from("active_students").insert(payload)
-        : access.supabase
-            .from("active_students")
-            .update(values)
-            .eq("id", id as string)
-            .eq("school_id", access.schoolId)
-            .eq("data_year", dataYear)
-            .eq("updated_at", expectedUpdatedAt ?? "");
+    let savedId: string | null = null;
+    let error: { code?: string } | null = null;
+    let updatedCount: number | null = null;
 
-    const { data, error } = await query
-      .select("id, updated_at")
-      .maybeSingle();
+    if (id === null) {
+      const result = await access.supabase
+        .from("active_students")
+        .insert(payload)
+        .select("id, updated_at")
+        .maybeSingle();
+      savedId = result.data?.id ?? null;
+      error = result.error;
+    } else {
+      const result = await access.supabase
+        .from("active_students")
+        .update(values, { count: "exact" })
+        .eq("id", id as string)
+        .eq("school_id", access.schoolId)
+        .eq("data_year", dataYear)
+        .eq("updated_at", expectedUpdatedAt ?? "");
+      error = result.error;
+      updatedCount = result.count;
+      if (!error && updatedCount === 1) savedId = id as string;
+    }
     if (error)
       return {
         success: false,
@@ -78,7 +88,7 @@ export async function saveActiveStudent(
             ? "Data tidak memenuhi aturan kelas, status, atau penempatan."
             : "Data murid belum dapat disimpan. Silakan periksa dan coba kembali.",
       };
-    if (!data)
+    if (!savedId || (id !== null && updatedCount !== 1))
       return {
         success: false,
         refresh: id !== null,
@@ -91,7 +101,7 @@ export async function saveActiveStudent(
     revalidateActiveStudents();
     return {
       success: true,
-      id: data.id,
+      id: savedId,
       message:
         id === null
           ? "Data murid berhasil ditambahkan."
@@ -152,8 +162,26 @@ export async function getActiveStudentHistory(
       "get_active_student_history",
       { p_student_id: parsed.data },
     );
-    if (error || !Array.isArray(data))
-      return { success: false, message: "Riwayat belum dapat dimuat." };
+    if (error || !Array.isArray(data)) {
+      const fallback = await access.supabase
+        .from("active_student_histories")
+        .select(
+          "id, student_id, change_type, old_value, new_value, changed_by, changed_at",
+        )
+        .eq("student_id", parsed.data)
+        .order("changed_at", { ascending: true })
+        .order("id", { ascending: true });
+      if (fallback.error || !Array.isArray(fallback.data))
+        return { success: false, message: "Riwayat belum dapat dimuat." };
+      return {
+        success: true,
+        history: fallback.data.map((item) => ({
+          ...item,
+          changed_by_name:
+            item.changed_by === access.userId ? access.fullName : null,
+        })) as ActiveStudentHistory[],
+      };
+    }
     return { success: true, history: data as ActiveStudentHistory[] };
   } catch {
     return { success: false, message: "Riwayat belum dapat dimuat." };
