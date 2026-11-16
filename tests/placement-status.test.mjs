@@ -208,6 +208,18 @@ function harness(options = {}) {
     },
     async rpc(name, args) {
       rpcs.push({ name, args });
+      if (name === "get_status_histories")
+        return {
+          data: args.p_placement_ids.map((placementIdValue, index) => ({
+            ...entry,
+            id:
+              index === 0
+                ? entry.id
+                : "00000000-0000-4000-8000-000000000006",
+            placement_id: placementIdValue,
+          })),
+          error: null,
+        };
       if (name === "get_status_history")
         return {
           data: [{ ...entry, placement_id: args.p_placement_id }],
@@ -650,8 +662,8 @@ test("detail fetches separate histories for current/historical placements; only 
     const h = harness({ role, withHistory: true });
     const tree = await h.detail();
     assert.deepEqual(
-      h.rpcs.map((call) => call.args.p_placement_id),
-      [placementId, previousId],
+      h.rpcs.map((call) => call.args.p_placement_ids),
+      [[placementId, previousId]],
     );
     const histories = elements(tree, "status-history");
     assert.equal(histories.length, 2);
@@ -676,8 +688,8 @@ test("detail fetches separate histories for current/historical placements; only 
     2,
   );
   assert.deepEqual(
-    legacy.rpcs.map((call) => call.args.p_placement_id),
-    [placementId, previousId],
+    legacy.rpcs.map((call) => call.args.p_placement_ids),
+    [[placementId, previousId]],
   );
   const h = harness({ ownerSchool: "other-school", withHistory: true });
   await assert.rejects(h.detail(), /notFound/);
