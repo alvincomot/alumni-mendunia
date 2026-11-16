@@ -28,6 +28,9 @@ type Diagnostic = {
   stage: SchoolAuthStage;
   correlationId: string;
   error?: unknown;
+  rateLimit?: "application" | "database" | "provider";
+  retryAfter?: number;
+  providerOutcome?: "accepted" | "rejected" | "not_attempted";
 };
 
 function safeCode(error: unknown) {
@@ -50,14 +53,30 @@ export function schoolAuthCorrelationId() {
   return randomUUID();
 }
 
-export function logSchoolAuthFailure(diagnostic: Diagnostic) {
-  console.error("school_auth_failure", {
+function safeDiagnostic(diagnostic: Diagnostic) {
+  return {
     operation: diagnostic.operation,
     stage: diagnostic.stage,
     correlation_id: diagnostic.correlationId,
-    code: safeCode(diagnostic.error),
+    ...(diagnostic.error ? { code: safeCode(diagnostic.error) } : {}),
     ...(safeStatus(diagnostic.error) === undefined
       ? {}
       : { status: safeStatus(diagnostic.error) }),
-  });
+    ...(diagnostic.rateLimit ? { rate_limit: diagnostic.rateLimit } : {}),
+    ...(typeof diagnostic.retryAfter === "number" &&
+    Number.isFinite(diagnostic.retryAfter)
+      ? { retry_after: Math.max(0, Math.ceil(diagnostic.retryAfter)) }
+      : {}),
+    ...(diagnostic.providerOutcome
+      ? { provider_outcome: diagnostic.providerOutcome }
+      : {}),
+  };
+}
+
+export function logSchoolAuthFailure(diagnostic: Diagnostic) {
+  console.error("school_auth_failure", safeDiagnostic(diagnostic));
+}
+
+export function logSchoolAuthEvent(diagnostic: Diagnostic) {
+  console.info("school_auth_event", safeDiagnostic(diagnostic));
 }
