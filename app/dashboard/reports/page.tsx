@@ -1,5 +1,8 @@
 import { requireAccess } from "@/lib/auth/access";
-import { loadMonitoring } from "@/lib/monitoring/data";
+import {
+  loadMonitoringOverview,
+  loadMonitoringPage,
+} from "@/lib/monitoring/data";
 import {
   distribution,
   reportHeaders,
@@ -20,16 +23,15 @@ export default async function ReportsPage({
 }) {
   const access = await requireAccess(["admin_dinas", "viewer_dinas"]);
   const params = await searchParams;
-  const rows = await loadMonitoring(access);
-  const confirmedPlacementRows = securedPlacementRows(rows);
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/.test(params.page)
       ? Number(params.page)
       : 1;
-  const page = Math.min(
-    Math.max(1, requested),
-    Math.max(1, Math.ceil(rows.length / 20)),
-  );
+  const [rows, pageResult] = await Promise.all([
+    loadMonitoringOverview(access),
+    loadMonitoringPage(access, requested, 20),
+  ]);
+  const confirmedPlacementRows = securedPlacementRows(rows);
   return (
     <>
       <h1 className="sr-only">Laporan Alumni</h1>
@@ -68,7 +70,7 @@ export default async function ReportsPage({
       {rows.length ? (
         <ReportTable
           headers={reportHeaders}
-          rows={rows.slice((page - 1) * 20, page * 20).map(reportValues)}
+          rows={pageResult.rows.map(reportValues)}
         />
       ) : (
         <p className="rounded-xl border bg-card p-6">
@@ -79,8 +81,8 @@ export default async function ReportsPage({
       <Pagination
         path="/dashboard/reports"
         params={{}}
-        page={page}
-        total={rows.length}
+        page={pageResult.page}
+        total={pageResult.total}
       />
     </>
   );
