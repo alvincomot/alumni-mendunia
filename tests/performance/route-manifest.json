@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 2,
+  "classifications": [
+    "ALLOWED",
+    "DENIED_EXPECTED",
+    "NOT_APPLICABLE"
+  ],
+  "roles": [
+    "petugas_sekolah",
+    "admin_dinas",
+    "viewer_dinas"
+  ],
+  "pageCount": 20,
+  "handlerCount": 4,
+  "pages": [
+    {
+      "route": "/",
+      "sourceFile": "app/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/login"
+      },
+      "policySource": "canonical public redirect"
+    },
+    {
+      "route": "/auth/access-denied",
+      "sourceFile": "app/auth/access-denied/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "policySource": "public page"
+    },
+    {
+      "route": "/auth/error",
+      "sourceFile": "app/auth/error/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "policySource": "public page"
+    },
+    {
+      "route": "/auth/forgot-password",
+      "sourceFile": "app/auth/forgot-password/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "policySource": "public page"
+    },
+    {
+      "route": "/auth/login",
+      "sourceFile": "app/auth/login/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "policySource": "public page"
+    },
+    {
+      "route": "/auth/sign-up",
+      "sourceFile": "app/auth/sign-up/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/login"
+      },
+      "policySource": "canonical public redirect"
+    },
+    {
+      "route": "/auth/sign-up-success",
+      "sourceFile": "app/auth/sign-up-success/page.tsx",
+      "dynamicParameters": [],
+      "access": "public",
+      "publicResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/login"
+      },
+      "policySource": "canonical public redirect"
+    },
+    {
+      "route": "/auth/update-password",
+      "sourceFile": "app/auth/update-password/page.tsx",
+      "dynamicParameters": [],
+      "access": "special_session",
+      "skipReason": "Memerlukan sesi recovery, undangan, atau wajib-ganti-password yang tervalidasi; token nyata tidak diuji.",
+      "policySource": "verified password-flow session",
+      "roleClassifications": {
+        "petugas_sekolah": "NOT_APPLICABLE",
+        "admin_dinas": "NOT_APPLICABLE",
+        "viewer_dinas": "NOT_APPLICABLE"
+      }
+    },
+    {
+      "route": "/dashboard",
+      "sourceFile": "app/dashboard/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah",
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/alumni",
+      "sourceFile": "app/dashboard/alumni/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah",
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/alumni/[id]",
+      "sourceFile": "app/dashboard/alumni/[id]/page.tsx",
+      "dynamicParameters": [
+        {
+          "name": "id",
+          "fixtureKey": "alumni",
+          "catchAll": false,
+          "optional": false
+        }
+      ],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah",
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "getAlumniAccess read policy",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/alumni/new",
+      "sourceFile": "app/dashboard/alumni/new/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ],
+        "bodyIncludes": "Akses tidak diizinkan"
+      },
+      "policySource": "getAlumniAccess canWrite policy",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "DENIED_EXPECTED",
+        "viewer_dinas": "DENIED_EXPECTED"
+      }
+    },
+    {
+      "route": "/dashboard/audit-logs",
+      "sourceFile": "app/dashboard/audit-logs/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "admin_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/dashboard/monitoring?tab=audit"
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess plus canonical monitoring redirect",
+      "roleClassifications": {
+        "petugas_sekolah": "DENIED_EXPECTED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "DENIED_EXPECTED"
+      }
+    },
+    {
+      "route": "/dashboard/monitoring",
+      "sourceFile": "app/dashboard/monitoring/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "admin_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "DENIED_EXPECTED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "DENIED_EXPECTED"
+      }
+    },
+    {
+      "route": "/dashboard/murid-aktif",
+      "sourceFile": "app/dashboard/murid-aktif/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah",
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/murid-aktif/new",
+      "sourceFile": "app/dashboard/murid-aktif/new/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "DENIED_EXPECTED",
+        "viewer_dinas": "DENIED_EXPECTED"
+      }
+    },
+    {
+      "route": "/dashboard/reports",
+      "sourceFile": "app/dashboard/reports/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "DENIED_EXPECTED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/schools",
+      "sourceFile": "app/dashboard/schools/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ],
+        "bodyIncludes": "Akses tidak diizinkan"
+      },
+      "policySource": "getSchoolAccess policy",
+      "roleClassifications": {
+        "petugas_sekolah": "DENIED_EXPECTED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/users",
+      "sourceFile": "app/dashboard/users/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "admin_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "DENIED_EXPECTED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "DENIED_EXPECTED"
+      }
+    },
+    {
+      "route": "/protected",
+      "sourceFile": "app/protected/page.tsx",
+      "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah",
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/dashboard"
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/login"
+      },
+      "policySource": "authenticated compatibility redirect",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    }
+  ],
+  "handlers": [
+    {
+      "route": "/api/monitoring/pageview",
+      "sourceFile": "app/api/monitoring/pageview/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "testedAsPage": false,
+      "skipReason": "Endpoint POST menulis telemetry; dikecualikan dari pengujian halaman read-only."
+    },
+    {
+      "route": "/auth/callback",
+      "sourceFile": "app/auth/callback/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "testedAsPage": false,
+      "skipReason": "Endpoint token autentikasi; tidak diuji tanpa token fiktif yang tervalidasi."
+    },
+    {
+      "route": "/auth/confirm",
+      "sourceFile": "app/auth/confirm/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "testedAsPage": false,
+      "skipReason": "Endpoint token autentikasi; tidak diuji tanpa token fiktif yang tervalidasi."
+    },
+    {
+      "route": "/dashboard/reports/export",
+      "sourceFile": "app/dashboard/reports/export/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "testedAsPage": false,
+      "skipReason": "Route handler unduhan CSV, bukan halaman HTML; pengujian ini berfokus pada page routes."
+    }
+  ]
+}
