@@ -37,6 +37,7 @@ const schema = load("lib/active-students/schema.ts", {
 const model = load("lib/active-students/model.ts", {
   "./schema": schema,
 });
+const navigation = load("lib/active-students/navigation.ts");
 
 const valid = {
   full_name: "Murid Fiktif",
@@ -99,6 +100,30 @@ test("placement rules require country and date, then clear both when set to Belu
   });
   assert.equal(parsed.placement_country, null);
   assert.equal(parsed.placement_date, null);
+});
+
+test("training completion input requires a student UUID and current row version", () => {
+  assert.equal(
+    schema.completeActiveStudentTrainingSchema.safeParse({
+      id: "00000000-0000-4000-8000-000000000101",
+      expected_updated_at: "2026-11-16T08:00:00+00:00",
+    }).success,
+    true,
+  );
+  for (const input of [
+    {
+      id: "invalid",
+      expected_updated_at: "2026-11-16T08:00:00+00:00",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000101",
+      expected_updated_at: "invalid",
+    },
+  ])
+    assert.equal(
+      schema.completeActiveStudentTrainingSchema.safeParse(input).success,
+      false,
+    );
 });
 
 test("filters and statistics use the selected year, school and current statuses", () => {
@@ -355,6 +380,87 @@ test("edit action accepts one guarded update and rejects a stale update", async 
   assert.equal(updateCalls, 2);
 });
 
+test("quick training completion is atomic, school-scoped and stale-safe", async () => {
+  const id = "00000000-0000-4000-8000-000000000101";
+  const schoolId = "00000000-0000-4000-8000-000000000011";
+  const expectedUpdatedAt = "2026-11-16T08:00:00+00:00";
+  const attempts = [];
+  const revalidated = [];
+  let canWrite = true;
+  let currentStatus = "aktif_pelatihan";
+  const supabase = {
+    from(table) {
+      assert.equal(table, "active_students");
+      return {
+        update(values, options) {
+          assert.deepEqual(values, { training_status: "selesai_pelatihan" });
+          assert.deepEqual(options, { count: "exact" });
+          const filters = [];
+          const query = {
+            eq(column, value) {
+              filters.push([column, value]);
+              return query;
+            },
+            then(resolve) {
+              attempts.push(filters);
+              const matches = currentStatus === "aktif_pelatihan";
+              if (matches) currentStatus = "selesai_pelatihan";
+              return Promise.resolve({
+                count: matches ? 1 : 0,
+                error: null,
+              }).then(resolve);
+            },
+          };
+          return query;
+        },
+      };
+    },
+  };
+  const actions = load("app/dashboard/murid-aktif/actions.ts", {
+    "next/cache": {
+      revalidatePath(pathname) {
+        revalidated.push(pathname);
+      },
+    },
+    "@/lib/alumni/access": {
+      async getAlumniAccess() {
+        return {
+          allowed: true,
+          canWrite,
+          schoolId,
+          userId: "00000000-0000-4000-8000-000000000003",
+          fullName: "Petugas Fiktif",
+          supabase,
+        };
+      },
+    },
+    "@/lib/active-students/schema": schema,
+  });
+  const input = { id, expected_updated_at: expectedUpdatedAt };
+  const results = await Promise.all([
+    actions.completeActiveStudentTraining(input),
+    actions.completeActiveStudentTraining(input),
+  ]);
+  assert.equal(results.filter((result) => result.success).length, 1);
+  assert.equal(
+    results.filter((result) => !result.success && result.refresh).length,
+    1,
+  );
+  assert.deepEqual(attempts[0], [
+    ["id", id],
+    ["school_id", schoolId],
+    ["training_status", "aktif_pelatihan"],
+    ["updated_at", expectedUpdatedAt],
+  ]);
+  assert.deepEqual(revalidated, ["/dashboard/murid-aktif", "/dashboard"]);
+
+  canWrite = false;
+  const beforeDenied = attempts.length;
+  const deniedResult = await actions.completeActiveStudentTraining(input);
+  assert.equal(deniedResult.success, false);
+  assert.equal(attempts.length, beforeDenied);
+});
+
 test("history action falls back to the RLS table while the broken RPC is unapplied", async () => {
   const historyQuery = {
     select() {
@@ -418,12 +524,65 @@ test("history action falls back to the RLS table while the broken RPC is unappli
 
 test("read-only Dinas UI has detail access without edit or delete actions", () => {
   const page = source("app/dashboard/murid-aktif/page.tsx");
+  const detail = source("app/dashboard/murid-aktif/[id]/page.tsx");
   const actions = source("components/active-students/student-actions.tsx");
   assert.match(page, /canWrite=\{access\.canWrite\}/u);
-  assert.match(actions, /<DetailDialog student=\{student\} \/>/u);
+  assert.match(actions, /activeStudentDetailPath\(student\.id, returnTo\)/u);
+  assert.doesNotMatch(actions, /DetailDialog|showModal\(\)[\s\S]*Riwayat perubahan/u);
   assert.match(actions, /\{canWrite && \(/u);
-  assert.match(actions, /<DeleteDialog student=\{student\} \/>/u);
+  assert.match(actions, /<DeleteStudentDialog student=\{student\} \/>/u);
   assert.match(actions, /Hapus Permanen/u);
+  assert.match(actions, /student\.training_status === "aktif_pelatihan"/u);
+  assert.match(actions, /<CompleteTrainingDialog student=\{student\} \/>/u);
+  assert.match(detail, /loadActiveStudentDetail\(access, id\)/u);
+  assert.match(detail, /!access\.canWrite && " · Akses hanya baca"/u);
+  assert.match(detail, /<ActiveStudentHistoryList history=\{history\}/u);
+  assert.match(detail, /<StudentDialog[\s\S]*triggerLabel="Edit data murid"/u);
+});
+
+test("active student detail navigation preserves safe list filters", () => {
+  const list = navigation.activeStudentListPath({
+    q: "Fiktif",
+    school: "00000000-0000-4000-8000-000000000011",
+    training: "aktif_pelatihan",
+    page: "3",
+    full_name: "ignored",
+  });
+  const detail = navigation.activeStudentDetailPath(
+    "00000000-0000-4000-8000-000000000101",
+    list,
+  );
+  const url = new URL(detail, "https://local.invalid");
+  assert.equal(
+    navigation.activeStudentReturnPath(url.searchParams.get("returnTo")),
+    list,
+  );
+  assert.doesNotMatch(detail, /full_name|ignored/u);
+  for (const unsafe of [
+    "https://evil.example/dashboard/murid-aktif",
+    "//evil.example/dashboard/murid-aktif",
+    "/dashboard/users",
+    "/dashboard/murid-aktif/new",
+    "/dashboard/murid-aktif#history",
+  ])
+    assert.equal(
+      navigation.activeStudentReturnPath(unsafe),
+      "/dashboard/murid-aktif",
+    );
+});
+
+test("active student and alumni histories show explicit before-to-after transitions", () => {
+  const studentHistory = source(
+    "components/active-students/student-history.tsx",
+  );
+  const alumniHistory = source("components/alumni/status-history.tsx");
+  for (const history of [studentHistory, alumniHistory]) {
+    assert.match(history, /<span aria-hidden="true">→<\/span>/u);
+    assert.match(history, /<span className="sr-only"> menjadi <\/span>/u);
+    assert.match(history, /divide-y rounded-xl border px-4/u);
+  }
+  assert.match(alumniHistory, /Status penempatan/u);
+  assert.match(alumniHistory, /"Belum dicatat"/u);
 });
 
 test("active student creation uses the two-step registration page", () => {
@@ -465,6 +624,21 @@ test("active student list uses bounded server pagination without school monitori
   assert.match(page, /loadActiveStudentPage\(access, filters, requested, pageSize\)/u);
   assert.match(page, /<Pagination[\s\S]*size=\{pageSize\}/u);
   assert.doesNotMatch(page, /Monitoring Sekolah|schoolMonitoring|overview\.bySchool/u);
+});
+
+test("active student overview uses semantic metric icons and compact visible filters", () => {
+  const page = source("app/dashboard/murid-aktif/page.tsx");
+  const filters = source("components/active-students/filters.tsx");
+  const summary = source("components/active-students/summary.tsx");
+  assert.match(page, /filters\.year = "";/u);
+  assert.doesNotMatch(page, /years=\{overview\.filterYears\}/u);
+  assert.doesNotMatch(filters, /name: "year"|label: "Tahun Pendataan"/u);
+  assert.match(filters, /label: school\.name/u);
+  assert.doesNotMatch(filters, /label: `\$\{school\.name\}[^`]*school\.npsn/u);
+  assert.match(filters, /inlineActions/u);
+  assert.match(summary, /<DashboardIcon name=\{item\.icon\}/u);
+  for (const icon of ["users", "schoolBuilding", "book", "clipboard", "flag"])
+    assert.match(summary, new RegExp(`icon: "${icon}"`, "u"));
 });
 
 test("country options render inside the native active-student dialog", () => {
