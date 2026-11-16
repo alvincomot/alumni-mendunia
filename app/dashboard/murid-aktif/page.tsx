@@ -21,7 +21,7 @@ import { Pagination } from "@/components/data/pagination";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-const pageSize = 20;
+const pageSize = 10;
 
 export default async function ActiveStudentsPage({
   searchParams,
@@ -59,7 +59,6 @@ export default async function ActiveStudentsPage({
   const school = schoolResult.data;
   const visibleRows = pageResult.rows;
   const page = pageResult.page;
-  const schoolMonitoring = overview.bySchool;
 
   return (
     <div className="mx-auto w-full max-w-[96rem]">
@@ -191,38 +190,6 @@ export default async function ActiveStudentsPage({
         total={pageResult.total}
         size={pageSize}
       />
-
-      {crossSchool && (
-        <section className="mt-6 rounded-xl border bg-card p-5 sm:p-6" aria-labelledby="school-monitoring-title">
-          <h2 id="school-monitoring-title" className="type-section-title text-primary">Monitoring Sekolah</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Sekolah diurutkan berdasarkan jumlah murid berminat terbanyak.</p>
-          {schoolMonitoring.length === 0 ? (
-            <p className="mt-5 text-sm text-muted-foreground">Belum ada sekolah sesuai filter.</p>
-          ) : (
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="border-b text-primary">
-                  <tr>
-                    {["Nama Sekolah", "NPSN", "Total Murid", "Aktif Pelatihan", "Selesai Pelatihan", "Sudah Penempatan"].map((label) => <th key={label} scope="col" className="px-3 py-3">{label}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {schoolMonitoring.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0">
-                      <th scope="row" className="px-3 py-3 font-medium">{item.name}</th>
-                      <td className="px-3 py-3 tabular-nums">{item.npsn}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.total}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.activeTraining}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.completedTraining}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.placed}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }
