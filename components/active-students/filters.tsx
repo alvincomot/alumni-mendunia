@@ -7,12 +7,10 @@ import type { ActiveStudentFilters } from "@/lib/active-students/model";
 
 export function ActiveStudentFilterForm({
   schools,
-  years,
   values,
   showSchools,
 }: {
   schools: Array<{ id: string; name: string; npsn: string }>;
-  years: number[];
   values: ActiveStudentFilters;
   showSchools: boolean;
 }) {
@@ -30,7 +28,7 @@ export function ActiveStudentFilterForm({
             options: schools
               .map((school) => ({
                 value: school.id,
-                label: `${school.name} · ${school.npsn}`,
+                label: school.name,
               }))
               .sort((left, right) =>
                 left.label.localeCompare(right.label, "id-ID"),
@@ -60,14 +58,6 @@ export function ActiveStudentFilterForm({
       options: Object.entries(placementStatusLabels).map(([value, label]) => ({
         value,
         label,
-      })),
-    },
-    {
-      name: "year",
-      label: "Tahun Pendataan",
-      options: years.map((year) => ({
-        value: String(year),
-        label: String(year),
       })),
     },
   ];
