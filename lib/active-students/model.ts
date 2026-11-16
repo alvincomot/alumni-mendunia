@@ -5,7 +5,7 @@ import {
   trainingStatusLabels,
 } from "./schema";
 
-const rowSchema = z.object({
+export const activeStudentRowSchema = z.object({
   id: z.string().uuid(),
   school_id: z.string().uuid(),
   full_name: z.string(),
@@ -30,7 +30,7 @@ const rowSchema = z.object({
   schools: z.object({ name: z.string(), npsn: z.string() }).nullable(),
 });
 
-export const activeStudentRowsSchema = rowSchema.array();
+export const activeStudentRowsSchema = activeStudentRowSchema.array();
 
 export type ActiveStudentFilters = Record<
   "q" | "school" | "grade" | "training" | "placement" | "year",
