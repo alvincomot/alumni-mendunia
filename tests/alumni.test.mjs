@@ -598,7 +598,13 @@ function harness(options = {}) {
       "@/components/alumni/status-history": { StatusHistory: () => null },
       "@/components/dashboard-icon": { DashboardIcon: () => null },
       "@/lib/alumni/history": {
-        getPlacementHistory: async () => ({ entries: [], error: false }),
+        getPlacementHistories: async (_client, placementIds) =>
+          new Map(
+            placementIds.map((placementId) => [
+              placementId,
+              { entries: [], error: false },
+            ]),
+          ),
       },
       "@/components/ui/button": { Button: () => null },
       "@/components/ui/input": { Input: () => null },
