@@ -41,21 +41,15 @@ export default async function MonitoringPage({
 
   return (
     <>
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="type-page-title text-primary">Monitoring Sistem</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Pantau penggunaan aplikasi, aktivitas data, dan kondisi layanan
-            berdasarkan sumber yang tersedia.
-          </p>
-        </div>
-        <Button asChild variant="outline" className="self-start">
+      <h1 className="sr-only">Monitoring Sistem</h1>
+      <div className="flex justify-end">
+        <Button asChild variant="outline">
           <a href={refreshHref}>
             <RefreshCw aria-hidden="true" />
             Perbarui data
           </a>
         </Button>
-      </header>
+      </div>
       <SystemTabs active={tab} />
       {tab === "usage" && <UsageTab access={access} raw={raw} />}
       {tab === "audit" && <AuditLogPanel access={access} raw={raw} />}
