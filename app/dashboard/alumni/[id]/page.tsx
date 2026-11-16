@@ -10,7 +10,7 @@ import { PlacementForm } from "@/components/alumni/placement-form";
 import { Button } from "@/components/ui/button";
 import { StatusAction } from "@/components/alumni/status-action";
 import { StatusHistory } from "@/components/alumni/status-history";
-import { getPlacementHistory } from "@/lib/alumni/history";
+import { getPlacementHistories } from "@/lib/alumni/history";
 import { inferLegacyPlacementSecured, isMissingPlacementStateSchema } from "@/lib/alumni/placement-compat";
 import { formatCountryName } from "@/lib/countries";
 import { DashboardIcon, type DashboardIconName } from "@/components/dashboard-icon";
@@ -148,13 +148,15 @@ export default async function AlumniDetailPage({
   const placements = placementRows.data ?? [];
   const placement = placements.find((item) => item.is_current) ?? null;
   const hasPlacement = placements.length > 0;
-  const histories = await Promise.all(
-    placements.map(async (item) => ({
-      placement: item,
-      current: item.id === placement?.id,
-      history: await getPlacementHistory(access.supabase, item.id),
-    })),
+  const historiesByPlacement = await getPlacementHistories(
+    access.supabase,
+    placements.map((item) => item.id),
   );
+  const histories = placements.map((item) => ({
+    placement: item,
+    current: item.id === placement?.id,
+    history: historiesByPlacement.get(item.id) ?? { entries: [], error: true },
+  }));
   return (
     <AlumniPageFrame canWrite={access.canWrite}>
       <div className="flex flex-wrap items-center gap-3">
