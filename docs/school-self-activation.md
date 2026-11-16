@@ -27,8 +27,11 @@ available. Use fictional test data.
    After an eight-character-or-longer password and matching confirmation are
    accepted by Auth, the service-only completion RPC atomically creates the profile
    and marks the school ACTIVE. It preserves a matching existing profile.
-6. School recovery accepts only NPSN. The server resolves the ACTIVE account's
-   verified email and calls `resetPasswordForEmail`. Dinas recovery is unchanged.
+6. School recovery accepts only NPSN. A service-only RPC reserves the ACTIVE
+   account row, the server resolves its verified email, and Supabase Auth receives
+   `resetPasswordForEmail`. The server binds the recovery cooldown only after Auth
+   accepts the request; provider rejection cancels the reservation. Dinas recovery
+   remains enumeration-safe and uses a separately keyed IP safeguard.
 
 Email ownership is established by Supabase. The MVP intentionally allows a
 person knowing a valid unclaimed NPSN to choose an email and activate by proving
@@ -37,14 +40,30 @@ There is no approval queue, document verification, or active-school email-change
 
 ## Retry and access rules
 
-The cooldown-loop regression was caused by two incompatible timers. Activation
-previously reused the recovery limiter, which allowed three attempts in a fixed
-15-minute window, while every application, database or Auth rate-limit error was
-reported as a new 60-second wait. The form then replaced its timer with that
-hard-coded value after every rejection. Once the application window was full,
-the visible minute expired long before the server window, producing the loop.
-The activation-specific limiter and authoritative retry contract below replace
-that behavior; the recovery flow itself is unchanged.
+The School recovery `1 detik` loop came from an application limiter and error
+mapping with incompatible contracts. The instance-local recovery limiter blocked
+the fourth request for 15 minutes but returned only a boolean. Its rejection was
+then represented as PostgreSQL error `55P03`, which selected the activation copy,
+and the missing retry duration fell back to one second. Repeated clicks therefore
+showed one second while the real application window remained active. Recovery now
+uses an operation-specific limiter that returns its actual remaining duration,
+and database recovery cooldowns have their own status RPC and copy.
+
+A read-only hosted observation supplied for NPSN `22222222` further isolates the
+source. The account was `ACTIVE`; `last_sent_at` was `09:06:04 UTC`, while server
+time was `09:16:19 UTC`, an age of 615 seconds. The deployed recovery RPC only
+rejected `last_sent_at` values less than 60 seconds old, and it did not inspect
+`activation_expires_at`. Therefore neither the ten-minute-old activation timestamp
+nor the still-future activation expiry can produce that one-second response. The
+only matching path was the application rejection represented as `55P03` and the
+`retryAfter ?? 1` fallback described above.
+
+Activation and recovery previously also shared
+`school_auth_accounts.last_sent_at`. The forward migration
+`20261114000100_separate_school_recovery_cooldown.sql` adds independent recovery
+delivery and reservation fields. It prevents a successful activation email from
+starting the ordinary recovery cooldown, and prevents failed recovery delivery
+initiation from consuming that cooldown.
 
 A later shared-cooldown regression came from using `activation:<client IP>` as
 the only application key and merging its remaining 15-minute window directly
@@ -77,8 +96,16 @@ a separately labelled abuse-control ceiling.
   A request for another NPSN uses another row and remains eligible. The browser
   maintains separate school and client deadlines from the returned relative
   seconds, including after refresh or a return to the form.
+- `school_recovery_status` returns a ceiling-rounded recovery retry value from
+  `recovery_last_sent_at` and an active recovery reservation. Recovery requests
+  lock one NPSN row, so parallel tabs cannot send twice. Rejected early requests
+  do not change either timestamp. A provider failure calls
+  `school_recovery_cancel`; an interrupted operation expires after five minutes.
+  Activation continues to use `last_sent_at`, so the two ordinary cooldowns are
+  independent.
 - The application limiter is a separate IP-level safeguard under the explicit
-  `activation:ip:<client IP>` key. It permits three concurrent operations from a
+  `activation:ip:<client IP>` or `recovery:ip:<client IP>` key. It permits three
+  concurrent operations from a
   client, counts only provider-accepted delivery initiations toward its
   three-delivery, 15-minute window, and has a separate bounded failure budget.
   Reaching this limit produces a network-wide message and never changes the
@@ -124,7 +151,7 @@ columns match `20261028000200_native_school_self_activation.sql`; the version is
 therefore treated as applied and is not edited. No credentials or user email
 values were inspected for this audit.
 
-`20261029000100_harden_school_activation_completion.sql` is the pending additive
+`20261029000100_harden_school_activation_completion.sql` is the existing additive
 hardening migration. It stores a request-scoped fingerprint of the current Auth
 password hash when an invitation is bound. Completion requires the verified
 user's Auth password hash to differ from that baseline. The fingerprint is
@@ -134,23 +161,28 @@ next successful password change remains usable. Existing ACTIVE accounts, Auth
 IDs, profiles, schools, alumni, placements, histories and legacy reconciliation
 metadata are retained.
 
+`20261114000100_separate_school_recovery_cooldown.sql` is pending and must
+be applied before deploying the matching application. It adds only private
+recovery timing/reservation columns and service-role RPCs. It does not rewrite
+existing activation timestamps, Auth identities, profiles, roles, RLS policies,
+or user data. The migration is intentionally unapplied by this repository audit.
+
 Safe release procedure, performed by an authorized operator:
 
 1. Take an approved database backup. Recheck `supabase migration list --linked`
-   and confirm version `20261028000200` is applied and
-   `20261029000100` is still unapplied. If the history differs, stop and resolve
+   and confirm all repository migrations through `20261113000100` are applied,
+   while `20261114000100` is unapplied. If the history differs, stop and resolve
    the environment mismatch before deployment.
-2. Review the additive hardening SQL and run the isolated SQL tests below. Confirm the
+2. Review the recovery cooldown SQL and run the isolated SQL tests below. Confirm the
    live schema still matches prerequisites, especially private table/trigger
    definitions and profile administration guards. Resolve schema drift before
    application, rather than using CASCADE or editing prior migration history.
 3. Configure the email requirements below, including equal Dashboard and server
-   token-expiry values. Deploy the database migration first. Its service-only
-   two-argument binding wrapper keeps the immediately preceding application
-   release compatible during rollout.
-4. Deploy the matching application immediately after the migration. The new
-   application fails closed if the three-argument operation-fenced RPC is
-   missing. Do not leave mixed versions running longer than the rollout.
+   token-expiry values. Apply `20261114000100` first; the preceding application
+   does not call the new recovery RPCs and remains compatible during this step.
+4. Deploy the matching application after the migration. The new recovery path
+   requires the status, request, bind, and cancel RPCs. Do not deploy the code
+   before the migration.
 5. Run the read-only checks and live fictional-account acceptance below. This
    implementation does not run hosted SQL, migration repair, or Auth changes.
 
@@ -165,7 +197,8 @@ select n.nspname, p.proname, p.prosecdef, p.proacl
 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
 where p.proname in ('school_auth_lookup','school_activation_request',
  'school_activation_bind','school_activation_cancel','school_activation_context','complete_school_activation',
- 'school_recovery_request','can_read_school','can_write_school','current_school_id');
+ 'school_recovery_status','school_recovery_request','school_recovery_bind',
+ 'school_recovery_cancel','can_read_school','can_write_school','current_school_id');
 select pg_get_functiondef(p.oid) from pg_proc p
 join pg_namespace n on n.oid=p.pronamespace
 where n.nspname='app_private' and p.proname in
