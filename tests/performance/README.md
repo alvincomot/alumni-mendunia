@@ -45,9 +45,8 @@ melalui RLS. Untuk petugas, kedua fixture wajib berasal dari sekolah akun.
 Pembuat sesi juga mencari alumni dari sekolah lain melalui `admin_dinas`, lalu
 memastikan RLS menyembunyikannya dari `petugas_sekolah`. UUID dapat dioverride
 melalui environment jika diperlukan, tetapi tidak wajib diisi. Halaman detail
-murid saat ini berupa dialog di route daftar, bukan page dinamis. UUID murid
-tetap ditemukan dan diverifikasi agar konfigurasi siap ketika route detail page
-ditambahkan.
+murid menggunakan route dinamis `/dashboard/murid-aktif/[id]`. UUID murid
+ditemukan otomatis melalui sesi dan RLS untuk menguji halaman tersebut.
 
 Salin konfigurasi contoh ke file lokal yang diabaikan Git:
 
