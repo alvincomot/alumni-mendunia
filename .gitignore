@@ -12,6 +12,14 @@
 
 # testing
 /coverage
+/tests/performance/results/
+/tests/performance/config.local.json
+/tests/performance/config.local.env
+/tests/performance/.sessions*.local.json
+/tests/performance/*.session.json
+
+# local Codex workspace files
+/.codex/
 
 # next.js
 /.next/
