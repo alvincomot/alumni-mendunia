@@ -39,7 +39,10 @@ function recoveryHarness(options = {}) {
     },
     "@/lib/auth/recovery": schema,
     "@/lib/auth/recovery-rate-limit": {
-      consumeRecoveryAttempt: () => config.allowed,
+      consumeRecoveryAttempt: () =>
+        config.allowed
+          ? { allowed: true }
+          : { allowed: false, retryAfter: 321 },
     },
     "@/lib/auth/auth-flow-context": flowContext,
     "@/lib/supabase/server": {
@@ -177,11 +180,20 @@ test("installed Supabase SSR persists a PKCE verifier cookie before sending reco
 test("recovery rate limit allows three requests then resets without retaining raw addresses", () => {
   const { consumeRecoveryAttempt } = load("lib/auth/recovery-rate-limit.ts", { "server-only": {} });
   const key = "fictional-client-recovery-test";
-  assert.equal(consumeRecoveryAttempt(key, 100), true);
-  assert.equal(consumeRecoveryAttempt(key, 200), true);
-  assert.equal(consumeRecoveryAttempt(key, 300), true);
-  assert.equal(consumeRecoveryAttempt(key, 400), false);
-  assert.equal(consumeRecoveryAttempt(key, 15 * 60 * 1000 + 101), true);
+  assert.deepEqual(consumeRecoveryAttempt(key, 100), { allowed: true });
+  assert.deepEqual(consumeRecoveryAttempt(key, 200), { allowed: true });
+  assert.deepEqual(consumeRecoveryAttempt(key, 300), { allowed: true });
+  assert.deepEqual(consumeRecoveryAttempt(key, 400), {
+    allowed: false,
+    retryAfter: 900,
+  });
+  assert.deepEqual(consumeRecoveryAttempt(key, 899_999), {
+    allowed: false,
+    retryAfter: 1,
+  });
+  assert.deepEqual(consumeRecoveryAttempt(key, 15 * 60 * 1000 + 101), {
+    allowed: true,
+  });
   assert.equal(globalThis.alumniRecoveryAttempts.has(key), false);
 });
 
