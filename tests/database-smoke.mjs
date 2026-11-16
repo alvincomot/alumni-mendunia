@@ -444,6 +444,8 @@ try {
     "20261109000100_system_monitoring.sql",
     "20261112000100_active_students.sql",
     "20261113000100_require_active_student_fields_and_fix_history.sql",
+    "20261114000100_separate_school_recovery_cooldown.sql",
+    "20261116000100_batch_read_performance.sql",
   ]) {
     // PGlite does not package pgcrypto; core PostgreSQL gen_random_uuid() is sufficient here.
     await db.exec(migrationSql(filename));
@@ -1986,6 +1988,26 @@ try {
           ]),
           /permission denied/,
         );
+        await assert.rejects(
+          db.query("SELECT public.school_recovery_status('00000015')"),
+          /permission denied/,
+        );
+        await assert.rejects(
+          db.query("SELECT public.school_recovery_request('00000015')"),
+          /permission denied/,
+        );
+        await assert.rejects(
+          db.query("SELECT public.school_recovery_bind('00000015',$1)", [
+            user(97),
+          ]),
+          /permission denied/,
+        );
+        await assert.rejects(
+          db.query("SELECT public.school_recovery_cancel('00000015',$1)", [
+            user(97),
+          ]),
+          /permission denied/,
+        );
       }
       await asService();
       const lookup = (
@@ -2394,21 +2416,135 @@ try {
       );
       await as(null);
       await db.query(
-        "UPDATE app_private.school_auth_accounts SET last_sent_at=now()-interval '2 minutes' WHERE school_id=$1",
+        "UPDATE app_private.school_auth_accounts SET status='ACTIVE',last_sent_at=now()-interval '10 minutes 15 seconds',activation_expires_at=now()+interval '39 minutes',recovery_last_sent_at=NULL,recovery_operation_id=NULL,recovery_operation_started_at=NULL WHERE school_id=$1",
         [user(15)],
       );
+      const hostedLikeActiveAccount = (
+        await db.query(
+          "SELECT status,extract(epoch FROM now()-last_sent_at)::int AS activation_sent_age,activation_expires_at>now() AS activation_link_unexpired,recovery_last_sent_at FROM app_private.school_auth_accounts WHERE school_id=$1",
+          [user(15)],
+        )
+      ).rows[0];
+      assert.deepEqual(hostedLikeActiveAccount, {
+        status: "ACTIVE",
+        activation_sent_age: 615,
+        activation_link_unexpired: true,
+        recovery_last_sent_at: null,
+      });
       await asService();
+      const firstRecovery = (
+        await db.query(
+          "SELECT public.school_recovery_request('00000015') AS value",
+        )
+      ).rows[0].value;
+      assert.equal(firstRecovery.email, "activation@example.test");
+      assert.ok(firstRecovery.operation_id);
+      const pendingRecoveryRetry = (
+        await db.query(
+          "SELECT public.school_recovery_status('00000015') AS value",
+        )
+      ).rows[0].value.retry_after;
+      assert.ok(pendingRecoveryRetry > 0 && pendingRecoveryRetry <= 300);
+      await assert.rejects(
+        db.query("SELECT public.school_recovery_request('00000015')"),
+        /wait before requesting password recovery/,
+      );
       assert.equal(
         (
           await db.query(
-            "SELECT public.school_recovery_request('00000015') AS value",
+            "SELECT public.school_recovery_cancel('00000015',$1) AS value",
+            [firstRecovery.operation_id],
           )
-        ).rows[0].value.email,
-        "activation@example.test",
+        ).rows[0].value,
+        true,
       );
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_recovery_status('00000015') AS value",
+          )
+        ).rows[0].value.retry_after,
+        0,
+      );
+
+      const acceptedRecovery = (
+        await db.query(
+          "SELECT public.school_recovery_request('00000015') AS value",
+        )
+      ).rows[0].value;
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_recovery_bind('00000015',$1) AS value",
+            [acceptedRecovery.operation_id],
+          )
+        ).rows[0].value,
+        true,
+      );
+      const boundRecoveryRetry = (
+        await db.query(
+          "SELECT public.school_recovery_status('00000015') AS value",
+        )
+      ).rows[0].value.retry_after;
+      assert.ok(boundRecoveryRetry > 0 && boundRecoveryRetry <= 60);
       await assert.rejects(
         db.query("SELECT public.school_recovery_request('00000015')"),
-        /wait before resending/,
+        /wait before requesting password recovery/,
+      );
+      await as(null);
+      await db.exec(`
+        INSERT INTO auth.users(id,email)
+          VALUES ('${user(17)}','recovery-two@example.test');
+        INSERT INTO public.schools(id,npsn,name,city)
+          VALUES ('${user(18)}','00000017','SMK Recovery Fiktif','Jakarta');
+        INSERT INTO public.profiles(user_id,full_name,role,school_id)
+          VALUES ('${user(17)}','Petugas Recovery Fiktif','petugas_sekolah','${user(18)}');
+      `);
+      await asService();
+      const otherSchoolRecovery = (
+        await db.query(
+          "SELECT public.school_recovery_request('00000017') AS value",
+        )
+      ).rows[0].value;
+      assert.equal(otherSchoolRecovery.email, "recovery-two@example.test");
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_recovery_cancel('00000017',$1) AS value",
+            [otherSchoolRecovery.operation_id],
+          )
+        ).rows[0].value,
+        true,
+      );
+      await as(null);
+      const recoveryState = (
+        await db.query(
+          "SELECT last_sent_at,recovery_last_sent_at,recovery_operation_id FROM app_private.school_auth_accounts WHERE school_id=$1",
+          [user(15)],
+        )
+      ).rows[0];
+      assert.ok(recoveryState.last_sent_at);
+      assert.ok(recoveryState.recovery_last_sent_at);
+      assert.equal(recoveryState.recovery_operation_id, null);
+      await db.query(
+        "UPDATE app_private.school_auth_accounts SET recovery_last_sent_at=now()-interval '60 seconds' WHERE school_id=$1",
+        [user(15)],
+      );
+      await asService();
+      const boundaryRecovery = (
+        await db.query(
+          "SELECT public.school_recovery_request('00000015') AS value",
+        )
+      ).rows[0].value;
+      assert.equal(boundaryRecovery.email, "activation@example.test");
+      assert.equal(
+        (
+          await db.query(
+            "SELECT public.school_recovery_cancel('00000015',$1) AS value",
+            [boundaryRecovery.operation_id],
+          )
+        ).rows[0].value,
+        true,
       );
       await as(1);
       await db.query(
