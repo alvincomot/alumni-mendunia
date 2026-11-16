@@ -21,7 +21,7 @@ const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), "alumni-ui-audit-"));
 const fixture = `
   export const id=(n)=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
   const activePlacement=new URL(location.href).searchParams.has('active');
-  export const schools=[{id:id(1),npsn:'00000001',name:'SMK Fiktif Nusantara dengan Nama Sekolah Panjang',city:'Jakarta',is_active:true},{id:id(2),npsn:'00000002',name:'SMK Fiktif Kedua',city:'Jakarta',is_active:false},{id:id(3),npsn:'00000003',name:'SMK Fiktif Belum Aktivasi',city:'Jakarta',is_active:true},{id:id(4),npsn:'00000004',name:'SMK Fiktif Menunggu Aktivasi',city:'Jakarta',is_active:true},{id:id(5),npsn:'00000005',name:'SMK Fiktif Akun Ditangguhkan',city:'Jakarta',is_active:true}];
+  export const schools=[{id:id(1),npsn:'00000001',name:'SMK Fiktif Nusantara dengan Nama Sekolah Panjang',city:'Jakarta Selatan I',is_active:true},{id:id(2),npsn:'00000002',name:'SMK Fiktif Kedua',city:'Jakarta Selatan II',is_active:false},{id:id(3),npsn:'00000003',name:'SMK Fiktif Belum Aktivasi',city:'Jakarta Timur I',is_active:true},{id:id(4),npsn:'00000004',name:'SMK Fiktif Menunggu Aktivasi',city:'Jakarta Timur II',is_active:true},{id:id(5),npsn:'00000005',name:'SMK Fiktif Akun Ditangguhkan',city:'Kepulauan Seribu',is_active:true}];
   export const profiles=[{user_id:id(10),full_name:'Administrator Fiktif',role:'admin_dinas',school_id:null,is_active:true,must_change_password:false},{user_id:id(11),full_name:'Petugas Sekolah Fiktif',role:'petugas_sekolah',school_id:id(1),is_active:true,must_change_password:false},{user_id:id(12),full_name:'Petugas Fiktif Ditangguhkan',role:'petugas_sekolah',school_id:id(2),is_active:false,must_change_password:false},{user_id:id(13),full_name:'Petugas Fiktif Nonaktif',role:'petugas_sekolah',school_id:id(5),is_active:false,must_change_password:false}];
   export const placements=[{id:id(30),alumni_id:id(20),status:activePlacement?'aktif_bekerja':'persiapan_berangkat',destination_country:'Jepang',placement_secured:true,placement_provider_name:'LPK Fiktif',company_name:'Perusahaan Fiktif',work_sector:'Teknologi',planned_departure:activePlacement?'2030-01-15':null,actual_departure:activePlacement?'2020-01-01':null,employment_start:null,contract_end_date:null,is_current:true,created_at:'2026-10-01T00:00:00Z',updated_at:'2026-10-01T00:00:00Z'}];
   export const alumni=[{id:id(20),school_id:id(1),full_name:'Alumni Fiktif dengan Nama Panjang untuk Pengujian',graduation_year:2025,major:'Teknik Komputer dan Jaringan',schools:{name:schools[0].name},placements}, {id:id(21),school_id:id(1),full_name:'Alumni Fiktif Kedua',graduation_year:2024,major:'Teknik Mesin',schools:{name:schools[0].name},placements:[]}];
@@ -475,8 +475,8 @@ try {
           .getByLabel("Nama sekolah (wajib)", { exact: true })
           .fill("SMK Fixture Cleanup");
         await dialog
-          .getByLabel("Kota (wajib)", { exact: true })
-          .fill("Jakarta");
+          .getByLabel("Sudin (wajib)", { exact: true })
+          .selectOption("Jakarta Selatan I");
         await dialog
           .getByRole("button", { name: "Simpan", exact: true })
           .click();
