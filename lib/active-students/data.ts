@@ -25,7 +25,6 @@ const summaryRowsSchema = z.array(
     grade: z.number().int().min(10).max(13),
     training_status: trainingStatusSchema,
     placement_status: placementStatusSchema,
-    schools: schoolSummarySchema.nullable(),
   }),
 );
 const filterRowsSchema = z.array(
@@ -50,17 +49,6 @@ const overviewRpcSchema = z.object({
     "12": z.number().int().nonnegative(),
     "13": z.number().int().nonnegative(),
   }),
-  by_school: z.array(
-    z.object({
-      id: z.string().uuid(),
-      name: z.string(),
-      npsn: z.string(),
-      total: z.number().int().nonnegative(),
-      active_training: z.number().int().nonnegative(),
-      completed_training: z.number().int().nonnegative(),
-      placed: z.number().int().nonnegative(),
-    }),
-  ),
   filter_schools: z.array(
     z.object({
       id: z.string().uuid(),
@@ -81,15 +69,6 @@ export type ActiveStudentOverview = {
     selesai_pelatihan: number;
   };
   grades: Record<10 | 11 | 12 | 13, number>;
-  bySchool: Array<{
-    id: string;
-    name: string;
-    npsn: string;
-    total: number;
-    activeTraining: number;
-    completedTraining: number;
-    placed: number;
-  }>;
   filterSchools: Array<{ id: string; name: string; npsn: string }>;
   filterYears: number[];
 };
@@ -167,7 +146,7 @@ function overviewFromRows(
   summaryRows: z.infer<typeof summaryRowsSchema>,
   filterRows: z.infer<typeof filterRowsSchema>,
 ): ActiveStudentOverview {
-  const bySchool = new Map<string, ActiveStudentOverview["bySchool"][number]>();
+  const schoolIds = new Set<string>();
   const overview: ActiveStudentOverview = {
     total: 0,
     placed: 0,
@@ -178,7 +157,6 @@ function overviewFromRows(
       selesai_pelatihan: 0,
     },
     grades: { 10: 0, 11: 0, 12: 0, 13: 0 },
-    bySchool: [],
     filterSchools: [],
     filterYears: [],
   };
@@ -187,30 +165,9 @@ function overviewFromRows(
     overview.training[row.training_status] += 1;
     overview.grades[row.grade as 10 | 11 | 12 | 13] += 1;
     if (row.placement_status === "sudah") overview.placed += 1;
-    const school = bySchool.get(row.school_id) ?? {
-      id: row.school_id,
-      name: row.schools?.name ?? "Sekolah tidak tersedia",
-      npsn: row.schools?.npsn ?? "-",
-      total: 0,
-      activeTraining: 0,
-      completedTraining: 0,
-      placed: 0,
-    };
-    school.total += 1;
-    if (row.training_status === "aktif_pelatihan")
-      school.activeTraining += 1;
-    if (row.training_status === "selesai_pelatihan")
-      school.completedTraining += 1;
-    if (row.placement_status === "sudah") school.placed += 1;
-    bySchool.set(row.school_id, school);
+    schoolIds.add(row.school_id);
   }
-  overview.bySchool = [...bySchool.values()].sort(
-    (left, right) =>
-      right.total - left.total ||
-      left.name.localeCompare(right.name, "id-ID") ||
-      left.id.localeCompare(right.id),
-  );
-  overview.schoolCount = bySchool.size;
+  overview.schoolCount = schoolIds.size;
 
   const filterSchools = new Map<string, { id: string; name: string; npsn: string }>();
   const filterYears = new Set<number>();
@@ -241,7 +198,7 @@ async function loadActiveStudentOverviewFallback(
       let query = access.supabase
         .from("active_students")
         .select(
-          "school_id, grade, training_status, placement_status, schools(name, npsn)",
+          "school_id, grade, training_status, placement_status",
           { count: "exact" },
         );
       if (access.canWrite) query = query.eq("school_id", access.schoolId!);
@@ -305,15 +262,6 @@ export async function loadActiveStudentOverview(
       12: parsed.data.grades["12"],
       13: parsed.data.grades["13"],
     },
-    bySchool: parsed.data.by_school.map((school) => ({
-      id: school.id,
-      name: school.name,
-      npsn: school.npsn,
-      total: school.total,
-      activeTraining: school.active_training,
-      completedTraining: school.completed_training,
-      placed: school.placed,
-    })),
     filterSchools: parsed.data.filter_schools,
     filterYears: parsed.data.filter_years,
   };
