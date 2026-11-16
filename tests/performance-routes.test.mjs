@@ -60,10 +60,22 @@ test("performance policy covers roles, dynamic IDs and security exclusions", () 
     "admin_dinas",
     "viewer_dinas",
   ]);
-  assert.equal(
-    routes.pages.some((page) => page.route.includes("murid-aktif/[")),
-    false,
+  const activeStudentDetail = routes.pages.find(
+    (page) => page.route === "/dashboard/murid-aktif/[id]",
   );
+  assert.deepEqual(activeStudentDetail.dynamicParameters, [
+    {
+      name: "id",
+      fixtureKey: "murid",
+      catchAll: false,
+      optional: false,
+    },
+  ]);
+  assert.deepEqual(activeStudentDetail.allowedRoles, [
+    "petugas_sekolah",
+    "admin_dinas",
+    "viewer_dinas",
+  ]);
   assert.match(
     routes.pages.find((page) => page.route === "/auth/update-password").skipReason,
     /token nyata tidak diuji/,
