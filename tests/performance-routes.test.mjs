@@ -131,7 +131,7 @@ test("performance secret files stay ignored and example contains no credentials"
     "utf8",
   );
   assert.match(ignore, /config\.local\.env/);
-  assert.match(ignore, /\.sessions\.local\.json/);
+  assert.match(ignore, /\.sessions\*\.local\.json/);
   assert.match(example, /replace-with-local-password/);
   assert.doesNotMatch(example, /sb_secret_|service_role|eyJ[A-Za-z0-9_-]+\./);
 });
