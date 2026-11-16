@@ -32,7 +32,7 @@ const mocks = {
   "fixture:data": fixture,
   "server-only": "",
   "next/link": `import React from 'react';export default function Link(props){return <a {...props}/>} `,
-  "next/navigation": `export const useRouter=()=>({push(value){window.fixture.destination=value},replace(value){window.fixture.destination=value},refresh(){window.fixture.refreshes++}});export const usePathname=()=>'/dashboard/murid-aktif';export function redirect(value){throw Error('Unexpected redirect '+value)}`,
+  "next/navigation": `export const useRouter=()=>({push(value){window.fixture.destination=value},replace(value){window.fixture.destination=value},refresh(){window.fixture.refreshes++}});export const usePathname=()=>'/dashboard/murid-aktif';export function redirect(value){throw Error('Unexpected redirect '+value)};export function notFound(){throw Error('Unexpected not found')}`,
   "@/lib/auth/access": `export {access as requireAccess} from 'fixture:data'`,
   "@/lib/active-students/data": `
     import {school,students} from 'fixture:data';
@@ -47,9 +47,13 @@ const mocks = {
       const filterSchools=access.canWrite?[school]:students.map(row=>({id:row.school_id,name:row.schools.name,npsn:row.schools.npsn})).filter((item,index,all)=>all.findIndex(candidate=>candidate.id===item.id)===index);
       return {total:rows.length,placed:rows.filter(row=>row.placement_status==='sudah').length,schoolCount:new Set(rows.map(row=>row.school_id)).size,training,grades,filterSchools,filterYears:[...new Set(rows.map(row=>row.data_year))]};
     }
+    export async function loadActiveStudentDetail(access,id){
+      return visibleRows(access).find(student=>student.id===id)??null;
+    }
   `,
   "@/app/dashboard/murid-aktif/actions": `
     export async function saveActiveStudent(id,input){window.fixture.saves++;window.fixture.lastSave={id,input};await new Promise(resolve=>setTimeout(resolve,80));return {success:true,id:id??'new-id',message:id?'Data murid berhasil diperbarui.':'Data murid berhasil ditambahkan.'}}
+    export async function completeActiveStudentTraining(input){window.fixture.completions++;window.fixture.lastCompletion=input;await new Promise(resolve=>setTimeout(resolve,80));return {success:true,id:input.id,message:'Status pelatihan berhasil diselesaikan.'}}
     export async function deleteActiveStudent(id){window.fixture.deletes++;await new Promise(resolve=>setTimeout(resolve,500));return {success:true,id,message:'Data murid dihapus permanen.'}}
     export async function getActiveStudentHistory(id){await new Promise(resolve=>setTimeout(resolve,40));return {success:true,history:[{id:'history-1',student_id:id,change_type:'training_status',old_value:null,new_value:'aktif_pelatihan',changed_by:null,changed_by_name:'Petugas Fiktif',changed_at:'2026-11-10T01:00:00Z'}]}}
   `,
@@ -61,12 +65,13 @@ const compiled = await build({
     contents: `
       import React from 'react';import {createRoot} from 'react-dom/client';
       import ActiveStudentsPage from './app/dashboard/murid-aktif/page';
+      import ActiveStudentDetailPage from './app/dashboard/murid-aktif/[id]/page';
       import {StudentRegistrationForm} from './components/active-students/student-registration-form';
-      import {school} from 'fixture:data';
+      import {id,school} from 'fixture:data';
       import {ToastProvider} from './components/ui/toast';
       const query=new URL(location.href).searchParams;
-      window.fixture={staff:query.has('staff'),empty:query.has('empty'),saves:0,deletes:0,lastSave:null,refreshes:0,destination:null};
-      async function start(){const content=query.has('new')?<div className="mx-auto w-full max-w-[90rem]"><h1 className="type-page-title">Tambah Murid Aktif</h1><p className="mt-2 text-sm">Lengkapi identitas, pelatihan, dan penempatan dalam dua langkah.</p><div className="mt-6"><StudentRegistrationForm school={school}/></div></div>:await ActiveStudentsPage({searchParams:Promise.resolve({})});createRoot(document.getElementById('root')).render(<ToastProvider>{content}<p className="sr-only">Fixture browser dengan data fiktif</p></ToastProvider>)}start();
+      window.fixture={staff:query.has('staff'),empty:query.has('empty'),saves:0,completions:0,deletes:0,lastSave:null,lastCompletion:null,refreshes:0,destination:null};
+      async function start(){let content;if(query.has('detail'))content=await ActiveStudentDetailPage({params:Promise.resolve({id:id(101)}),searchParams:Promise.resolve({returnTo:query.get('returnTo')??undefined})});else if(query.has('new'))content=<div className="mx-auto w-full max-w-[90rem]"><h1 className="type-page-title">Tambah Murid Aktif</h1><p className="mt-2 text-sm">Lengkapi identitas, pelatihan, dan penempatan dalam dua langkah.</p><div className="mt-6"><StudentRegistrationForm school={school}/></div></div>;else content=await ActiveStudentsPage({searchParams:Promise.resolve({})});createRoot(document.getElementById('root')).render(<ToastProvider>{content}<p className="sr-only">Fixture browser dengan data fiktif</p></ToastProvider>)}start();
     `,
     loader: "tsx",
     resolveDir: root,
@@ -153,6 +158,10 @@ try {
     assert.equal(await page.getByRole("link", { name: "Tambah Murid" }).count(), 1);
     assert.equal(await page.getByText("Bima Fiktif", { exact: true }).count(), 0);
     assert.equal(
+      await page.getByRole("button", { name: "Selesaikan Pelatihan: Ayu Fiktif" }).count(),
+      1,
+    );
+    assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       true,
       `staff page must not overflow at ${width}px`,
@@ -179,6 +188,41 @@ try {
     await formPage.screenshot({ path: path.join(artifacts, `form-${width}.png`), fullPage: true });
     await formPage.close();
 
+    const detailPage = await browser.newPage({ viewport: { width, height: 900 } });
+    const detailErrors = [];
+    detailPage.on("console", (message) => {
+      if (message.type() === "error") detailErrors.push(message.text());
+    });
+    detailPage.on("pageerror", (error) => detailErrors.push(error.message));
+    await detailPage.goto(`${base}/?staff=1&detail=1`, {
+      waitUntil: "networkidle",
+    });
+    await detailPage.getByRole("heading", { name: "Ayu Fiktif" }).waitFor();
+    await detailPage
+      .getByRole("heading", { name: "Riwayat perubahan", exact: true })
+      .waitFor();
+    assert.equal(
+      await detailPage.getByRole("dialog", { name: "Ayu Fiktif" }).count(),
+      0,
+    );
+    assert.equal(
+      await detailPage.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+      true,
+      `active-student detail must not overflow at ${width}px`,
+    );
+    assert.deepEqual(
+      detailErrors,
+      [],
+      `active-student detail browser errors at ${width}px`,
+    );
+    await detailPage.screenshot({
+      path: path.join(artifacts, `detail-${width}.png`),
+      fullPage: true,
+    });
+    await detailPage.close();
+
     const admin = await browser.newPage({ viewport: { width, height: 900 } });
     const adminErrors = [];
     admin.on("console", (message) => {
@@ -190,8 +234,34 @@ try {
     assert.equal(await admin.getByRole("link", { name: "Tambah Murid" }).count(), 0);
     assert.equal(await admin.getByRole("button", { name: /^Edit /u }).count(), 0);
     assert.equal(await admin.getByRole("button", { name: /^Hapus/u }).count(), 0);
+    assert.equal(await admin.getByRole("button", { name: /^Selesaikan Pelatihan/u }).count(), 0);
     assert.equal(await admin.getByText("Distribusi Status Pelatihan").count(), 1);
     assert.equal(await admin.getByText("Monitoring Sekolah", { exact: true }).count(), 0);
+    assert.equal(await admin.getByLabel("Tahun Pendataan", { exact: true }).count(), 0);
+    assert.deepEqual(
+      await admin.locator('select[name="school"] option').allTextContents(),
+      ["Semua", "SMK Fiktif Kedua", "SMK Fiktif Nusantara"],
+    );
+    assert.equal(
+      await admin.locator('section[aria-label="Ringkasan murid aktif"] svg').count(),
+      5,
+    );
+    if (width === 1440) {
+      const placementFilter = await admin
+        .locator('select[name="placement"]')
+        .boundingBox();
+      const applyButton = await admin
+        .getByRole("button", { name: "Terapkan", exact: true })
+        .boundingBox();
+      assert.ok(placementFilter && applyButton);
+      assert.ok(
+        Math.abs(
+          placementFilter.y + placementFilter.height -
+            (applyButton.y + applyButton.height),
+        ) <= 1,
+        "filter and action buttons must share the same baseline",
+      );
+    }
     assert.equal(
       await admin.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       true,
@@ -202,6 +272,31 @@ try {
     await admin.close();
     console.log(`PASS Data Murid Aktif staff/admin responsive at ${width}px`);
   }
+
+  const readOnlyDetail = await browser.newPage({
+    viewport: { width: 1024, height: 900 },
+  });
+  await readOnlyDetail.goto(`${base}/?detail=1`, { waitUntil: "networkidle" });
+  await readOnlyDetail.getByRole("heading", { name: "Ayu Fiktif" }).waitFor();
+  assert.equal(
+    await readOnlyDetail.getByRole("link", { name: "Tambah murid lain" }).count(),
+    0,
+  );
+  assert.equal(
+    await readOnlyDetail.getByRole("button", { name: /^Edit /u }).count(),
+    0,
+  );
+  assert.equal(
+    await readOnlyDetail
+      .getByRole("button", { name: /^Selesaikan Pelatihan/u })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await readOnlyDetail.getByRole("button", { name: /^Hapus/u }).count(),
+    0,
+  );
+  await readOnlyDetail.close();
 
   const page = await browser.newPage({ viewport: { width: 1024, height: 900 } });
   await page.goto(`${base}/?staff=1&new=1`, { waitUntil: "networkidle" });
@@ -242,11 +337,50 @@ try {
   assert.equal(await page.evaluate(() => window.fixture.destination), "/dashboard/murid-aktif");
 
   await page.goto(`${base}/?staff=1`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Detail Ayu Fiktif" }).click();
-  const detail = page.getByRole("dialog", { name: "Ayu Fiktif" });
-  await detail.getByRole("heading", { name: "Riwayat perubahan", exact: true }).waitFor();
-  await detail.getByText("Petugas Fiktif").waitFor();
-  await detail.getByRole("button", { name: "Tutup", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Selesaikan Pelatihan: Ayu Fiktif" })
+    .click();
+  const trainingCompletion = page.getByRole("dialog", {
+    name: "Selesaikan Pelatihan",
+  });
+  const completeButton = trainingCompletion.getByRole("button", {
+    name: "Ya, selesaikan",
+  });
+  await completeButton.click();
+  await trainingCompletion.getByRole("button", { name: "Menyimpan..." }).waitFor();
+  assert.equal(
+    await trainingCompletion.getByRole("button", { name: "Menyimpan..." }).isDisabled(),
+    true,
+  );
+  await page.getByText("Status pelatihan berhasil diselesaikan.", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.fixture.completions), 1);
+  assert.deepEqual(await page.evaluate(() => window.fixture.lastCompletion), {
+    id: "00000000-0000-4000-8000-000000000101",
+    expected_updated_at: "2026-11-10T01:00:00Z",
+  });
+
+  const detailLink = page.getByRole("link", { name: "Detail", exact: true });
+  assert.match(
+    await detailLink.getAttribute("href"),
+    /^\/dashboard\/murid-aktif\/00000000-0000-4000-8000-000000000101/u,
+  );
+
+  await page.goto(
+    `${base}/?staff=1&detail=1&returnTo=${encodeURIComponent("/dashboard/murid-aktif?page=2")}`,
+    { waitUntil: "networkidle" },
+  );
+  await page.getByRole("heading", { name: "Ayu Fiktif" }).waitFor();
+  await page
+    .getByRole("heading", { name: "Riwayat perubahan", exact: true })
+    .waitFor();
+  await page.getByText("Petugas Fiktif").waitFor();
+  assert.equal(
+    await page
+      .getByRole("link", { name: "Kembali ke daftar" })
+      .getAttribute("href"),
+    "/dashboard/murid-aktif?page=2",
+  );
+  assert.equal(await page.getByRole("dialog", { name: "Ayu Fiktif" }).count(), 0);
 
   await page.getByRole("button", { name: "Edit Ayu Fiktif" }).click();
   const edit = page.getByRole("dialog", { name: "Edit data murid" });
@@ -269,6 +403,10 @@ try {
   assert.equal(await deleting.isDisabled(), true);
   await page.getByText("Data murid dihapus permanen.", { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.fixture.deletes), 1);
+  assert.equal(
+    await page.evaluate(() => window.fixture.destination),
+    "/dashboard/murid-aktif?page=2",
+  );
   console.log("PASS Data Murid Aktif two-step add, conditional fields, detail, immutable year and guarded delete");
   console.log(`Browser artifacts: ${artifacts}`);
   await page.close();
