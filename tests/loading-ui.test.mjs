@@ -19,6 +19,7 @@ test("every dashboard route shape has a context-specific loading boundary", () =
     "app/dashboard/audit-logs/loading.tsx": "TableSkeleton",
     "app/dashboard/monitoring/loading.tsx": "PageSkeleton",
     "app/dashboard/murid-aktif/loading.tsx": "PageSkeleton",
+    "app/dashboard/murid-aktif/[id]/loading.tsx": "DetailSkeleton",
   };
 
   for (const [file, component] of Object.entries(expected)) {
@@ -45,13 +46,12 @@ test("top-level loading states mirror compact pages without report filters", () 
     "app/dashboard/schools/loading.tsx",
     "app/dashboard/users/loading.tsx",
     "app/dashboard/reports/loading.tsx",
+    "app/dashboard/murid-aktif/loading.tsx",
+    "app/dashboard/monitoring/loading.tsx",
   ])
     assert.match(read(file), /showHeader=\{false\}/);
 
-  assert.doesNotMatch(
-    read("app/dashboard/monitoring/loading.tsx"),
-    /showHeader=\{false\}/,
-  );
+  assert.match(read("app/dashboard/monitoring/loading.tsx"), /action/);
 
   assert.doesNotMatch(
     read("app/dashboard/reports/loading.tsx"),
