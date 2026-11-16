@@ -15,6 +15,8 @@ import {
   changeSchoolStatus,
 } from "@/app/dashboard/schools/actions";
 import {
+  SUDIN_OPTIONS,
+  isSudin,
   schoolSchema,
   type School,
   type SchoolInput,
@@ -63,7 +65,7 @@ function SchoolDialogContent({
     reset({
       npsn: school?.npsn ?? "",
       name: school?.name ?? "",
-      city: school?.city ?? "",
+      sudin: isSudin(school?.sudin) ? school.sudin : "",
     });
     dialog.current?.showModal();
   }
@@ -106,7 +108,7 @@ function SchoolDialogContent({
               : "Sekolah berhasil ditambahkan.",
         );
         setResult(null);
-        reset({ npsn: "", name: "", city: "" });
+        reset({ npsn: "", name: "", sudin: "" });
         dialog.current?.close();
       } else {
         setResult(response);
@@ -184,7 +186,6 @@ function SchoolDialogContent({
                 [
                   ["npsn", "NPSN", 8],
                   ["name", "Nama sekolah", 200],
-                  ["city", "Kota", 100],
                 ] as const
               ).map(([field, label, max]) => (
                 <div key={field} className="space-y-2">
@@ -220,6 +221,39 @@ function SchoolDialogContent({
                   )}
                 </div>
               ))}
+              <div className="space-y-2">
+                <Label htmlFor={`${identity}-sudin`}>Sudin (wajib)</Label>
+                <select
+                  {...register("sudin", {
+                    onChange: () => {
+                      clearErrors("sudin");
+                      setResult(null);
+                    },
+                  })}
+                  id={`${identity}-sudin`}
+                  required
+                  aria-invalid={Boolean(errors.sudin)}
+                  aria-describedby={
+                    errors.sudin ? `${identity}-sudin-error` : undefined
+                  }
+                  className="form-control block min-h-11 font-normal"
+                >
+                  <option value="">Pilih Sudin</option>
+                  {SUDIN_OPTIONS.map((sudin) => (
+                    <option key={sudin} value={sudin}>
+                      {sudin}
+                    </option>
+                  ))}
+                </select>
+                {errors.sudin && (
+                  <p
+                    id={`${identity}-sudin-error`}
+                    className="text-sm text-red-800"
+                  >
+                    {errors.sudin.message}
+                  </p>
+                )}
+              </div>
             </fieldset>
           )}
           {result && (
