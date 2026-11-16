@@ -446,6 +446,7 @@ try {
     "20261113000100_require_active_student_fields_and_fix_history.sql",
     "20261114000100_separate_school_recovery_cooldown.sql",
     "20261116000100_batch_read_performance.sql",
+    "20261116000200_remove_active_student_school_monitoring.sql",
   ]) {
     // PGlite does not package pgcrypto; core PostgreSQL gen_random_uuid() is sufficient here.
     await db.exec(migrationSql(filename));
