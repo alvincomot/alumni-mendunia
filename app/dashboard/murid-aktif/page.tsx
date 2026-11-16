@@ -1,8 +1,9 @@
 import { requireAccess } from "@/lib/auth/access";
-import { loadActiveStudents } from "@/lib/active-students/data";
 import {
-  activeStudentSummary,
-  filterActiveStudents,
+  loadActiveStudentOverview,
+  loadActiveStudentPage,
+} from "@/lib/active-students/data";
+import {
   parseActiveStudentFilters,
   type ActiveStudentSearchParams,
 } from "@/lib/active-students/model";
@@ -31,36 +32,34 @@ export default async function ActiveStudentsPage({
   const params = await searchParams;
   const filters = parseActiveStudentFilters(params);
   if (access.canWrite) filters.school = "";
-  const allRows = await loadActiveStudents(access);
-  const rows = filterActiveStudents(allRows, filters);
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/u.test(params.page)
       ? Number(params.page)
       : 1;
-  const page = Math.min(
-    Math.max(requested, 1),
-    Math.max(1, Math.ceil(rows.length / pageSize)),
-  );
-  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const crossSchool = !access.canWrite;
 
-  let school = { name: access.schoolName ?? "Sekolah", npsn: "-" };
-  if (access.canWrite && access.schoolId) {
-    const result = await access.supabase
-      .from("schools")
-      .select("name, npsn")
-      .eq("id", access.schoolId)
-      .maybeSingle();
-    if (result.error || !result.data)
-      throw new Error("Identitas sekolah tidak tersedia");
-    school = result.data;
-  }
-
-  const summary = activeStudentSummary(rows);
-  const schoolMonitoring = [...summary.bySchool.values()].sort(
-    (left, right) =>
-      right.total - left.total || left.name.localeCompare(right.name, "id-ID"),
-  );
+  const schoolPromise =
+    access.canWrite && access.schoolId
+      ? access.supabase
+          .from("schools")
+          .select("name, npsn")
+          .eq("id", access.schoolId)
+          .maybeSingle()
+      : Promise.resolve({
+          data: { name: access.schoolName ?? "Sekolah", npsn: "-" },
+          error: null,
+        });
+  const [pageResult, overview, schoolResult] = await Promise.all([
+    loadActiveStudentPage(access, filters, requested, pageSize),
+    loadActiveStudentOverview(access, filters),
+    schoolPromise,
+  ]);
+  if (schoolResult.error || !schoolResult.data)
+    throw new Error("Identitas sekolah tidak tersedia");
+  const school = schoolResult.data;
+  const visibleRows = pageResult.rows;
+  const page = pageResult.page;
+  const schoolMonitoring = overview.bySchool;
 
   return (
     <div className="mx-auto w-full max-w-[96rem]">
@@ -83,22 +82,23 @@ export default async function ActiveStudentsPage({
       </header>
 
       <div className="mt-6">
-        <ActiveStudentSummary rows={rows} crossSchool={crossSchool} />
+        <ActiveStudentSummary overview={overview} crossSchool={crossSchool} />
       </div>
 
       <ActiveStudentFilterForm
-        rows={allRows}
+        schools={overview.filterSchools}
+        years={overview.filterYears}
         values={filters}
         showSchools={crossSchool}
       />
 
       {crossSchool && (
         <div className="mb-6">
-          <ActiveStudentDistributions rows={rows} />
+          <ActiveStudentDistributions overview={overview} />
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {pageResult.total === 0 ? (
         <section className="rounded-xl border bg-card p-6">
           <h2 className="type-section-title text-primary">
             Belum ada murid sesuai filter
@@ -188,7 +188,7 @@ export default async function ActiveStudentsPage({
         path="/dashboard/murid-aktif"
         params={filters}
         page={page}
-        total={rows.length}
+        total={pageResult.total}
         size={pageSize}
       />
 
