@@ -114,7 +114,9 @@ test("routine dialogs close only after confirmed success and use concise toasts"
     /if \(response\.success\)[\s\S]*Sekolah berhasil ditambahkan\.[\s\S]*dialog\.current\?\.close\(\)/,
   );
   assert.match(school, /else \{\s*setResult\(response\)/);
-  assert.match(school, /reset\(\{ npsn: "", name: "", city: "" \}\)/);
+  assert.match(school, /reset\(\{ npsn: "", name: "", sudin: "" \}\)/);
+  assert.match(school, /<Label htmlFor=\{`\$\{identity\}-sudin`\}>Sudin \(wajib\)<\/Label>/);
+  assert.match(school, /SUDIN_OPTIONS\.map/);
   assert.match(
     user,
     /if \(response\.success\)[\s\S]*Profil pengguna berhasil diperbarui\.[\s\S]*dialog\.current\?\.close\(\)/,
