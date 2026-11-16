@@ -87,7 +87,7 @@ export default function Layout({children}){return <html lang="id"><body><ToastPr
     "lib/fixture.ts",
     `import {connection} from 'next/server';
 export const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
-export function state(){return globalThis.__formFixture??=(function(){const schools=[{id:id(1),name:'SMK Fiktif Satu',npsn:'00000001',city:'Jakarta',is_active:true},{id:id(2),name:'SMK Fiktif Dua',npsn:'00000002',city:'Jakarta',is_active:true}];return {mode:'success',hold:false,release:null,calls:{},next:100,activation:{mode:'success',retryAfter:2,clientRetryUntil:0,inFlight:{},holdNpsn:'00000001',release:null,records:{'00000001':{status:'UNCLAIMED',retryUntil:0},'00000002':{status:'UNCLAIMED',retryUntil:0}}},schools,profiles:[{user_id:id(10),full_name:'Admin Fiktif',role:'admin_dinas',school_id:null,is_active:true},{user_id:id(11),full_name:'Viewer Fiktif',role:'viewer_dinas',school_id:null,is_active:true}],alumni:[{id:id(20),school_id:id(1),full_name:'Alumni Fiktif A',graduation_year:2025,major:'Teknik A'},{id:id(21),school_id:id(1),full_name:'Alumni Fiktif B',graduation_year:2024,major:'Teknik B'}],placements:[]}})()}
+export function state(){return globalThis.__formFixture??=(function(){const schools=[{id:id(1),name:'SMK Fiktif Satu',npsn:'00000001',city:'Jakarta Selatan I',is_active:true},{id:id(2),name:'SMK Fiktif Dua',npsn:'00000002',city:'Jakarta Timur II',is_active:true}];return {mode:'success',hold:false,release:null,calls:{},next:100,activation:{mode:'success',retryAfter:2,clientRetryUntil:0,inFlight:{},holdNpsn:'00000001',release:null,records:{'00000001':{status:'UNCLAIMED',retryUntil:0},'00000002':{status:'UNCLAIMED',retryUntil:0}}},schools,profiles:[{user_id:id(10),full_name:'Admin Fiktif',role:'admin_dinas',school_id:null,is_active:true},{user_id:id(11),full_name:'Viewer Fiktif',role:'viewer_dinas',school_id:null,is_active:true}],alumni:[{id:id(20),school_id:id(1),full_name:'Alumni Fiktif A',graduation_year:2025,major:'Teknik A'},{id:id(21),school_id:id(1),full_name:'Alumni Fiktif B',graduation_year:2024,major:'Teknik B'}],placements:[]}})()}
 export async function operation(name){const s=state();s.calls[name]=(s.calls[name]??0)+1;if(s.hold)await new Promise(resolve=>{s.release=resolve});return s.mode}
 export const db={from(table){let rows=[...(state()[table]??[])],start=0,end=999;const query={select(){return query},order(){return query},or(){return query},range(a,b){start=a;end=b;return query},eq(k,v){rows=rows.filter(r=>r[k]===v);return query},in(k,vs){rows=rows.filter(r=>vs.includes(r[k]));return query},async maybeSingle(){return {data:rows[0]??null,error:null}},then(resolve){return Promise.resolve({data:rows.slice(start,end+1),count:rows.length,error:null}).then(resolve)}};return query}};
 export async function access(){await connection();return {allowed:true,canWrite:true,canManage:true,role:'admin_dinas',userId:id(10),schoolId:id(1),schoolName:state().schools[0].name,fullName:'Petugas Fiktif',supabase:db}}
@@ -142,7 +142,7 @@ export async function registerPlacement(alumniId,expected,input){if(await operat
   );
   write(
     "app/dashboard/schools/actions.ts",
-    `"use server";import {state,id,operation} from '@/lib/fixture';import {revalidatePath} from 'next/cache';export async function saveSchool(schoolId,input){if(await operation('school')==='failure')return {success:false,message:'Sekolah fiktif gagal.'};if(schoolId)Object.assign(state().schools.find(s=>s.id===schoolId),input);else state().schools.push({...input,id:id(state().next++),is_active:true});revalidatePath('/dashboard/schools');return {success:true,message:'Sekolah tersimpan.'}}export async function changeSchoolStatus(){return {success:false,message:'Tidak dipakai fixture.'}}export async function changeSchoolAccountStatus(){return {success:false,message:'Tidak dipakai fixture.'}}export async function getSchoolAccountDetails(schoolId){const s=state().schools.find(s=>s.id===schoolId);return {success:true,details:{school:{...s,isActive:s.is_active},status:'UNCLAIMED',accounts:[]}}}`,
+    `"use server";import {state,id,operation} from '@/lib/fixture';import {revalidatePath} from 'next/cache';export async function saveSchool(schoolId,input){if(await operation('school')==='failure')return {success:false,message:'Sekolah fiktif gagal.'};const stored={npsn:input.npsn,name:input.name,city:input.sudin};if(schoolId)Object.assign(state().schools.find(s=>s.id===schoolId),stored);else state().schools.push({...stored,id:id(state().next++),is_active:true});revalidatePath('/dashboard/schools');return {success:true,message:'Sekolah tersimpan.'}}export async function changeSchoolStatus(){return {success:false,message:'Tidak dipakai fixture.'}}export async function changeSchoolAccountStatus(){return {success:false,message:'Tidak dipakai fixture.'}}export async function getSchoolAccountDetails(schoolId){const s=state().schools.find(s=>s.id===schoolId);return {success:true,details:{school:{...s,isActive:s.is_active},status:'UNCLAIMED',accounts:[]}}}`,
   );
   write(
     "app/dashboard/users/actions.ts",
@@ -174,7 +174,7 @@ export async function registerPlacement(alumniId,expected,input){if(await operat
   );
   write(
     "app/auth/login/school-actions.ts",
-    `"use server";import {state} from '@/lib/fixture';const remaining=u=>Math.max(0,Math.ceil((u-Date.now())/1000));export async function lookupSchool(npsn){const a=state().activation,r=a.records[npsn]??=( {status:'UNCLAIMED',retryUntil:0} ),school=remaining(r.retryUntil),client=remaining(a.clientRetryUntil);return {success:true,school:{name:'SMK Fiktif',npsn,status:r.status,retry_after:school},cooldowns:{school,client},...(client?{retryAfter:client,rateLimit:'application'}:{})}}export async function requestSchoolActivation({npsn}){const s=state(),a=s.activation,r=a.records[npsn]??=( {status:'UNCLAIMED',retryUntil:0} );s.calls.activation=(s.calls.activation??0)+1;if(a.inFlight[npsn])return {success:false,message:'Permintaan aktivasi sekolah ini masih dalam masa tunggu. Coba lagi dalam 5 detik.',retryAfter:5,rateLimit:'database'};if(Object.keys(a.inFlight).length>=3)return {success:false,message:'Batas permintaan dari jaringan ini tercapai. Coba lagi dalam 5 detik.',retryAfter:5,rateLimit:'application'};a.inFlight[npsn]=true;if(a.mode==='hold'&&npsn===a.holdNpsn)await new Promise(resolve=>{a.release=resolve});try{if(a.mode==='database')return {success:false,message:'Permintaan aktivasi sekolah ini masih dalam masa tunggu. Coba lagi dalam '+a.retryAfter+' detik.',retryAfter:a.retryAfter,rateLimit:'database'};if(a.mode==='provider')return {success:false,message:'Layanan Auth sedang membatasi pengiriman email. Waktu tunggu tidak diberikan oleh layanan; tunggu beberapa saat lalu coba lagi.',rateLimit:'provider'};r.status='PENDING_ACTIVATION';r.retryUntil=Date.now()+a.retryAfter*1000;const school=a.retryAfter,client=remaining(a.clientRetryUntil);return {success:true,message:'Permintaan aktivasi diterima fixture.',retryAfter:Math.max(school,client),rateLimit:client>school?'application':'database',cooldowns:{school,client}}}finally{delete a.inFlight[npsn]}}export async function requestSchoolRecovery(){return {success:true,message:'Permintaan pemulihan diterima fixture.',retryAfter:60}}`,
+    `"use server";import {state} from '@/lib/fixture';const remaining=u=>Math.max(0,Math.ceil((u-Date.now())/1000));export async function lookupSchool(npsn){const a=state().activation,r=a.records[npsn]??=( {status:'UNCLAIMED',retryUntil:0} ),school=remaining(r.retryUntil),client=remaining(a.clientRetryUntil);return {success:true,school:{name:'SMK Fiktif',npsn,status:r.status,retry_after:school},cooldowns:{school,client},...(client?{retryAfter:client,rateLimit:'application'}:{})}}export async function requestSchoolActivation({npsn}){const s=state(),a=s.activation,r=a.records[npsn]??=( {status:'UNCLAIMED',retryUntil:0} );s.calls.activation=(s.calls.activation??0)+1;if(a.inFlight[npsn])return {success:false,message:'Permintaan aktivasi masih dalam masa tunggu. Coba lagi dalam 5 detik.',retryAfter:5,rateLimit:'database'};if(Object.keys(a.inFlight).length>=3)return {success:false,message:'Batas permintaan dari jaringan ini tercapai. Coba lagi dalam 5 detik.',retryAfter:5,rateLimit:'application'};a.inFlight[npsn]=true;if(a.mode==='hold'&&npsn===a.holdNpsn)await new Promise(resolve=>{a.release=resolve});try{if(a.mode==='database')return {success:false,message:'Permintaan aktivasi masih dalam masa tunggu. Coba lagi dalam '+a.retryAfter+' detik.',retryAfter:a.retryAfter,rateLimit:'database'};if(a.mode==='provider')return {success:false,message:'Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi.',rateLimit:'provider'};r.status='PENDING_ACTIVATION';r.retryUntil=Date.now()+a.retryAfter*1000;const school=a.retryAfter,client=remaining(a.clientRetryUntil);return {success:true,message:'Permintaan aktivasi diterima fixture.',retryAfter:Math.max(school,client),rateLimit:client>school?'application':'database',cooldowns:{school,client}}}finally{delete a.inFlight[npsn]}}export async function requestSchoolRecovery(){return {success:true,message:'Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.',retryAfter:60,cooldowns:{school:60,client:0},rateLimit:'database'}}`,
   );
 }
 
@@ -823,7 +823,9 @@ try {
     assert.equal(await dialog.locator('[aria-invalid="true"]').count(), 0);
     await dialog.getByLabel("Nama sekolah (wajib)").fill("SMK Fiktif Baru");
     await dialog.getByLabel("NPSN (wajib)").fill("00000003");
-    await dialog.getByLabel("Kota (wajib)").fill("Jakarta");
+    await dialog
+      .getByLabel("Sudin (wajib)")
+      .selectOption("Jakarta Selatan I");
     await control("?mode=failure");
     await dialog.getByRole("button", { name: "Simpan", exact: true }).click();
     await dialog.getByRole("alert").waitFor();
@@ -857,8 +859,29 @@ try {
         .fill("Draf Tidak Disimpan");
       await dialog.getByRole("button", { name: "Batal", exact: true }).click();
     }
+    await page
+      .getByRole("button", {
+        name: "Edit sekolah: SMK Fiktif Satu",
+        exact: true,
+      })
+      .click();
+    assert.equal(
+      await dialog.getByLabel("Sudin (wajib)").inputValue(),
+      "Jakarta Selatan I",
+    );
+    await dialog
+      .getByLabel("Sudin (wajib)")
+      .selectOption("Jakarta Barat II");
+    await dialog.getByRole("button", { name: "Simpan", exact: true }).click();
+    await dialog.waitFor({ state: "hidden" });
+    await main
+      .getByRole("row")
+      .filter({ hasText: "SMK Fiktif Satu" })
+      .getByRole("cell", { name: "Jakarta Barat II", exact: true })
+      .waitFor();
+    await dismiss();
     console.log(
-      "PASS school dialogs: canceled validation/drafts reset, failure preserved, success refreshes list and reopening is clean",
+      "PASS school dialogs: Sudin is required, add/edit persist dropdown values, canceled drafts reset, and failures preserve input",
     );
 
     await page
@@ -996,7 +1019,7 @@ try {
     await resend.click();
     await page
       .getByText(
-        "Permintaan aktivasi sekolah ini masih dalam masa tunggu. Coba lagi dalam 7 detik.",
+        "Permintaan aktivasi masih dalam masa tunggu. Coba lagi dalam 7 detik.",
         { exact: true },
       )
       .waitFor();
@@ -1052,7 +1075,12 @@ try {
     await input("NPSN").fill("00000001");
     await page.getByRole("button", { name: "Lanjutkan", exact: true }).click();
     await resend.click();
-    await page.getByText(/Waktu tunggu tidak diberikan oleh layanan/).waitFor();
+    await page
+      .getByText(
+        "Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi.",
+        { exact: true },
+      )
+      .waitFor();
     assert.equal(
       await page.getByText(/tersedia dalam|tersedia kembali/).count(),
       0,
@@ -1100,7 +1128,7 @@ try {
       .click();
     await thirdTab
       .getByText(
-        "Permintaan aktivasi sekolah ini masih dalam masa tunggu. Coba lagi dalam 5 detik.",
+        "Permintaan aktivasi masih dalam masa tunggu. Coba lagi dalam 5 detik.",
         { exact: true },
       )
       .waitFor();
