@@ -184,3 +184,14 @@ test("batch migration keeps authorization and RLS boundaries explicit", () => {
   assert.match(migration, /REVOKE EXECUTE[\s\S]*FROM PUBLIC, anon, authenticated/u);
   assert.match(migration, /GRANT EXECUTE[\s\S]*TO authenticated/u);
 });
+
+test("active student overview no longer builds per-school monitoring rows", () => {
+  const migration = source(
+    "supabase/migrations/20261116000200_remove_active_student_school_monitoring.sql",
+  );
+  const dataLoader = source("lib/active-students/data.ts");
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.get_active_student_overview/u);
+  assert.match(migration, /SECURITY INVOKER/u);
+  assert.doesNotMatch(migration, /school_groups|'by_school'/u);
+  assert.doesNotMatch(dataLoader, /by_school|bySchool/u);
+});
