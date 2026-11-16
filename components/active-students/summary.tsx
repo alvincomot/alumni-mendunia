@@ -1,10 +1,39 @@
+import {
+  DashboardIcon,
+  type DashboardIconName,
+} from "@/components/dashboard-icon";
 import type { ActiveStudentOverview } from "@/lib/active-students/data";
 
-function Metric({ label, value }: { label: string; value: number }) {
+type MetricItem = {
+  label: string;
+  value: number;
+  tag: string;
+  icon: DashboardIconName;
+  iconStyle: string;
+  tagStyle: string;
+};
+
+function Metric({ item }: { item: MetricItem }) {
   return (
-    <article className="rounded-xl border bg-card p-4 sm:p-5">
-      <p className="type-supporting text-muted-foreground">{label}</p>
-      <p className="type-stat mt-2 text-primary">{value.toLocaleString("id-ID")}</p>
+    <article className="flex min-h-32 flex-col justify-between rounded-xl border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span
+          className={`flex size-10 items-center justify-center rounded-full ${item.iconStyle}`}
+        >
+          <DashboardIcon name={item.icon} className="size-5" />
+        </span>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${item.tagStyle}`}
+        >
+          {item.tag}
+        </span>
+      </div>
+      <div className="mt-4">
+        <p className="type-stat tabular-nums text-[#191C1E]">
+          {item.value.toLocaleString("id-ID")}
+        </p>
+        <p className="type-label mt-1 text-[#444653]">{item.label}</p>
+      </div>
     </article>
   );
 }
@@ -16,25 +45,95 @@ export function ActiveStudentSummary({
   overview: ActiveStudentOverview;
   crossSchool: boolean;
 }) {
-  const metrics = crossSchool
+  const metrics: MetricItem[] = crossSchool
     ? [
-        ["Total Murid Berminat", overview.total],
-        ["Sekolah Berpartisipasi", overview.schoolCount],
-        ["Aktif Pelatihan", overview.training.aktif_pelatihan],
-        ["Selesai Pelatihan", overview.training.selesai_pelatihan],
-        ["Sudah Mendapat Penempatan", overview.placed],
+        {
+          label: "Total Murid Berminat",
+          value: overview.total,
+          tag: "Data",
+          icon: "users",
+          iconStyle: "bg-primary/10 text-primary",
+          tagStyle: "bg-primary/10 text-primary",
+        },
+        {
+          label: "Sekolah Berpartisipasi",
+          value: overview.schoolCount,
+          tag: "Sekolah",
+          icon: "schoolBuilding",
+          iconStyle: "bg-[#E6E8EA] text-[#444653]",
+          tagStyle: "bg-[#E6E8EA] text-[#5D5F6B]",
+        },
+        {
+          label: "Aktif Pelatihan",
+          value: overview.training.aktif_pelatihan,
+          tag: "Aktif",
+          icon: "book",
+          iconStyle: "bg-[#E6F6F7] text-[#075E66]",
+          tagStyle: "bg-[#E6F6F7] text-[#075E66]",
+        },
+        {
+          label: "Selesai Pelatihan",
+          value: overview.training.selesai_pelatihan,
+          tag: "Selesai",
+          icon: "clipboard",
+          iconStyle: "bg-[#E1F4EB] text-[#006B49]",
+          tagStyle: "bg-[#E1F4EB] text-[#006B49]",
+        },
+        {
+          label: "Sudah Mendapat Penempatan",
+          value: overview.placed,
+          tag: "Penempatan",
+          icon: "flag",
+          iconStyle: "bg-amber-50 text-amber-900",
+          tagStyle: "bg-amber-50 text-amber-900",
+        },
       ]
     : [
-        ["Total Murid", overview.total],
-        ["Belum Pelatihan", overview.training.belum_pelatihan],
-        ["Aktif Pelatihan", overview.training.aktif_pelatihan],
-        ["Sudah Selesai Pelatihan", overview.training.selesai_pelatihan],
-        ["Sudah Mendapat Penempatan", overview.placed],
+        {
+          label: "Total Murid",
+          value: overview.total,
+          tag: "Data",
+          icon: "users",
+          iconStyle: "bg-primary/10 text-primary",
+          tagStyle: "bg-primary/10 text-primary",
+        },
+        {
+          label: "Belum Pelatihan",
+          value: overview.training.belum_pelatihan,
+          tag: "Menunggu",
+          icon: "clock",
+          iconStyle: "bg-[#E6E8EA] text-[#444653]",
+          tagStyle: "bg-[#E6E8EA] text-[#5D5F6B]",
+        },
+        {
+          label: "Aktif Pelatihan",
+          value: overview.training.aktif_pelatihan,
+          tag: "Aktif",
+          icon: "book",
+          iconStyle: "bg-[#E6F6F7] text-[#075E66]",
+          tagStyle: "bg-[#E6F6F7] text-[#075E66]",
+        },
+        {
+          label: "Sudah Selesai Pelatihan",
+          value: overview.training.selesai_pelatihan,
+          tag: "Selesai",
+          icon: "clipboard",
+          iconStyle: "bg-[#E1F4EB] text-[#006B49]",
+          tagStyle: "bg-[#E1F4EB] text-[#006B49]",
+        },
+        {
+          label: "Sudah Mendapat Penempatan",
+          value: overview.placed,
+          tag: "Penempatan",
+          icon: "flag",
+          iconStyle: "bg-amber-50 text-amber-900",
+          tagStyle: "bg-amber-50 text-amber-900",
+        },
       ];
   return (
     <section aria-label="Ringkasan murid aktif" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      {metrics.map(([label, value]) => (
-        <Metric key={label} label={String(label)} value={Number(value)} />
+      {metrics.map((item) => (
+        <Metric key={item.label} item={item} />
       ))}
     </section>
   );
