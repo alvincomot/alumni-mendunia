@@ -44,7 +44,8 @@ export async function requestPasswordRecovery(input: unknown): Promise<RecoveryR
     const client = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       requestHeaders.get("x-real-ip")?.trim() || "unknown";
     const redirectTo = recoveryRedirect(requestHeaders.get("origin"));
-    if (!consumeRecoveryAttempt(client))
+    const attempt = consumeRecoveryAttempt(`recovery:dinas:ip:${client}`);
+    if (!attempt.allowed)
       return { success: false, message: recoveryUnavailableMessage };
 
     const supabase = await createClient();

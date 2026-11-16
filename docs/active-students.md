@@ -20,7 +20,9 @@ sebagai dasar otorisasi.
 ## Antarmuka
 
 - `/dashboard/murid-aktif`: daftar, statistik, filter, detail, edit, dan hapus
-  sesuai kewenangan role.
+  sesuai kewenangan role. Daftar dibatasi 10 murid per halaman dengan navigasi
+  Sebelumnya/Berikutnya. Tampilan lintas sekolah berfokus pada data murid dan
+  tidak menampilkan tabel agregasi sekolah.
 - `/dashboard/murid-aktif/new`: form tambah dua langkah untuk Petugas Sekolah,
   dengan ringkasan input dan identitas sekolah yang diperoleh dari sesi.
 
@@ -70,4 +72,10 @@ Migration tersebut mewajibkan status KJP dan nama lembaga untuk penulisan baru,
 serta memperbaiki referensi kolom ambigu pada RPC riwayat. Validasi server dan
 fallback pembacaan riwayat tetap dipertahankan sebagai perlindungan saat terjadi
 kegagalan infrastruktur.
+
+Migration optimasi berikut diterapkan ke hosted Supabase pada 16 November 2026
+untuk menghapus agregasi monitoring sekolah dari payload ringkasan tanpa
+mengubah RLS atau hak akses:
+
+`supabase/migrations/20261116000200_remove_active_student_school_monitoring.sql`
 

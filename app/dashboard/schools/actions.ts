@@ -50,17 +50,22 @@ export async function saveSchool(
     ) {
       return {
         success: false,
-        message: "Data tidak valid. Periksa NPSN, nama sekolah, dan kota.",
+        message: "Data tidak valid. Periksa NPSN, nama sekolah, dan Sudin.",
       };
     }
+    const schoolValues = {
+      npsn: parsed.data.npsn,
+      name: parsed.data.name,
+      city: parsed.data.sudin,
+    };
     const query =
       id === null
         ? access.supabase
             .from("schools")
-            .insert({ ...parsed.data, is_active: true })
+            .insert({ ...schoolValues, is_active: true })
         : access.supabase
             .from("schools")
-            .update(parsed.data)
+            .update(schoolValues)
             .eq("id", id as string);
     const { data, error } = await query.select("id").maybeSingle();
     if (error)

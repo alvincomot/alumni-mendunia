@@ -1,5 +1,4 @@
-import type { ActiveStudentRecord } from "@/lib/active-students/schema";
-import { activeStudentSummary } from "@/lib/active-students/model";
+import type { ActiveStudentOverview } from "@/lib/active-students/data";
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
@@ -11,27 +10,26 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 export function ActiveStudentSummary({
-  rows,
+  overview,
   crossSchool,
 }: {
-  rows: ActiveStudentRecord[];
+  overview: ActiveStudentOverview;
   crossSchool: boolean;
 }) {
-  const summary = activeStudentSummary(rows);
   const metrics = crossSchool
     ? [
-        ["Total Murid Berminat", summary.total],
-        ["Sekolah Berpartisipasi", summary.schools.size],
-        ["Aktif Pelatihan", summary.training.aktif_pelatihan],
-        ["Selesai Pelatihan", summary.training.selesai_pelatihan],
-        ["Sudah Mendapat Penempatan", summary.placed],
+        ["Total Murid Berminat", overview.total],
+        ["Sekolah Berpartisipasi", overview.schoolCount],
+        ["Aktif Pelatihan", overview.training.aktif_pelatihan],
+        ["Selesai Pelatihan", overview.training.selesai_pelatihan],
+        ["Sudah Mendapat Penempatan", overview.placed],
       ]
     : [
-        ["Total Murid", summary.total],
-        ["Belum Pelatihan", summary.training.belum_pelatihan],
-        ["Aktif Pelatihan", summary.training.aktif_pelatihan],
-        ["Sudah Selesai Pelatihan", summary.training.selesai_pelatihan],
-        ["Sudah Mendapat Penempatan", summary.placed],
+        ["Total Murid", overview.total],
+        ["Belum Pelatihan", overview.training.belum_pelatihan],
+        ["Aktif Pelatihan", overview.training.aktif_pelatihan],
+        ["Sudah Selesai Pelatihan", overview.training.selesai_pelatihan],
+        ["Sudah Mendapat Penempatan", overview.placed],
       ];
   return (
     <section aria-label="Ringkasan murid aktif" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -73,23 +71,26 @@ function DistributionCard({
   );
 }
 
-export function ActiveStudentDistributions({ rows }: { rows: ActiveStudentRecord[] }) {
-  const summary = activeStudentSummary(rows);
+export function ActiveStudentDistributions({
+  overview,
+}: {
+  overview: ActiveStudentOverview;
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <DistributionCard
         title="Distribusi Status Pelatihan"
         values={[
-          { label: "Belum Pelatihan", value: summary.training.belum_pelatihan },
-          { label: "Aktif Pelatihan", value: summary.training.aktif_pelatihan },
-          { label: "Sudah Selesai Pelatihan", value: summary.training.selesai_pelatihan },
+          { label: "Belum Pelatihan", value: overview.training.belum_pelatihan },
+          { label: "Aktif Pelatihan", value: overview.training.aktif_pelatihan },
+          { label: "Sudah Selesai Pelatihan", value: overview.training.selesai_pelatihan },
         ]}
       />
       <DistributionCard
         title="Distribusi Kelas"
         values={([10, 11, 12, 13] as const).map((grade) => ({
           label: `Kelas ${grade}`,
-          value: summary.grades[grade],
+          value: overview.grades[grade],
         }))}
       />
     </div>

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSchoolAccess } from "@/lib/schools/access";
-import { type School } from "@/lib/schools/schema";
+import { normalizeSudin, type School } from "@/lib/schools/schema";
 import { SchoolDialog } from "@/components/schools/school-dialog";
 import { SchoolRowActions } from "@/components/schools/school-row-actions";
 import { SchoolAccountStatus } from "@/components/schools/school-account-status";
-import { createAdminClient } from "@/lib/users/admin";
-import { readSchoolAccountStatus } from "@/lib/schools/accounts";
+import { readSchoolAccountStatuses } from "@/lib/schools/accounts";
 import type { SchoolLookup } from "@/lib/auth/school-auth";
 import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
@@ -61,10 +60,23 @@ export default async function SchoolsPage({
     .select("id, npsn, name, city, is_active", { count: "exact" });
   // Strip PostgREST filter syntax before interpolating a text search.
   const term = search.replace(/[^\p{L}\p{N}\s'-]/gu, " ").trim();
-  if (term)
+  if (term) {
+    const normalizedSudin = normalizeSudin(term);
+    const cityTerms = new Set([term]);
+    if (normalizedSudin) {
+      cityTerms.add(normalizedSudin);
+      cityTerms.add(
+        normalizedSudin.replace(/ II$/, " 2").replace(/ I$/, " 1"),
+      );
+    }
     query = query.or(
-      `npsn.ilike.%${term}%,name.ilike.%${term}%,city.ilike.%${term}%`,
+      [
+        `npsn.ilike.%${term}%`,
+        `name.ilike.%${term}%`,
+        ...[...cityTerms].map((value) => `city.ilike.%${value}%`),
+      ].join(","),
     );
+  }
   if (status !== "all") query = query.eq("is_active", status === "active");
   const { data, count, error } = await query
     .order("name")
@@ -75,7 +87,13 @@ export default async function SchoolsPage({
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (page > totalPages) redirect(pageUrl(totalPages));
-  const schools = (data ?? []) as School[];
+  const schools = (data ?? []).map((school) => ({
+    id: school.id,
+    npsn: school.npsn,
+    name: school.name,
+    sudin: normalizeSudin(school.city) ?? "",
+    is_active: school.is_active,
+  })) as School[];
   type AccountRow = {
     user_id: string;
     full_name: string;
@@ -83,35 +101,28 @@ export default async function SchoolsPage({
     is_active: boolean;
   };
   let accounts: AccountRow[] = [];
-  if (access.canManage && schools.length > 0) {
-    const schoolIds = schools.map((school) => school.id);
-    const result = await access.supabase
-      .from("profiles")
-      .select("user_id, full_name, school_id, is_active")
-      .eq("role", "petugas_sekolah")
-      .in("school_id", schoolIds);
-    if (result.error) throw new Error("School account list unavailable");
-    accounts = (result.data ?? []) as AccountRow[];
-  }
   const statuses = new Map<string, SchoolLookup["status"] | null>();
   if (access.canManage && schools.length > 0) {
-    try {
-      const admin = createAdminClient();
-      await Promise.all(
-        schools.map(async (school) => {
-          try {
-            statuses.set(
-              school.id,
-              await readSchoolAccountStatus(admin, school.npsn),
-            );
-          } catch {
-            statuses.set(school.id, null);
-          }
-        }),
-      );
-    } catch {
-      for (const school of schools) statuses.set(school.id, null);
-    }
+    const schoolIds = schools.map((school) => school.id);
+    const [result, loadedStatuses] = await Promise.all([
+      access.supabase
+        .from("profiles")
+        .select("user_id, full_name, school_id, is_active")
+        .eq("role", "petugas_sekolah")
+        .in("school_id", schoolIds),
+      readSchoolAccountStatuses(access.supabase, schools).catch(() => {
+        const unavailable = new Map<
+          string,
+          SchoolLookup["status"] | null
+        >();
+        for (const school of schools) unavailable.set(school.id, null);
+        return unavailable;
+      }),
+    ]);
+    if (result.error) throw new Error("School account list unavailable");
+    accounts = (result.data ?? []) as AccountRow[];
+    for (const [schoolId, statusValue] of loadedStatuses)
+      statuses.set(schoolId, statusValue);
   }
   const accountsBySchool = new Map<string, AccountRow[]>();
   for (const account of accounts) {
@@ -144,7 +155,7 @@ export default async function SchoolsPage({
           {
             name: "q",
             label: "Cari sekolah",
-            placeholder: "NPSN, nama sekolah, atau kota",
+            placeholder: "NPSN, nama sekolah, atau Sudin",
             maxLength: 200,
           },
           {
@@ -183,7 +194,7 @@ export default async function SchoolsPage({
             className={`w-full text-left text-sm ${access.canManage ? "min-w-[960px]" : "min-w-[680px]"}`}
           >
             <caption className="sr-only">
-              Daftar sekolah beserta NPSN, kota, status, dan tindakan yang
+              Daftar sekolah beserta NPSN, Sudin, status, dan tindakan yang
               tersedia
             </caption>
             <thead className="border-b bg-secondary text-primary">
@@ -191,7 +202,7 @@ export default async function SchoolsPage({
                 {[
                   "NPSN",
                   "Nama sekolah",
-                  "Kota",
+                  "Sudin",
                   "Status",
                   ...(access.canManage
                     ? ["Akun sekolah", "Petugas", "Tindakan"]
@@ -220,7 +231,7 @@ export default async function SchoolsPage({
                     {school.name}
                   </th>
                   <td className="max-w-xs break-words px-4 py-4">
-                    {school.city}
+                    {school.sudin || "Belum ditetapkan"}
                   </td>
                   <td className="px-4 py-4">
                     <span

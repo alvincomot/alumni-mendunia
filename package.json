@@ -4,7 +4,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "perf:discover": "node tests/performance/discover-routes.mjs",
+    "perf:sessions": "node tests/performance/create-test-sessions.mjs",
+    "perf:smoke": "node tests/performance/discover-routes.mjs && node tests/performance/run-k6.mjs smoke",
+    "perf:spike": "node tests/performance/discover-routes.mjs && node tests/performance/run-k6.mjs spike",
+    "perf:report": "node tests/performance/discover-routes.mjs && node tests/performance/run-k6.mjs report"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.3.1",

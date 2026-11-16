@@ -459,6 +459,14 @@ test("school dashboard replaces the school ranking with an active student summar
   assert.match(actions, /revalidatePath\("\/dashboard"\)/u);
 });
 
+test("active student list uses bounded server pagination without school monitoring", () => {
+  const page = source("app/dashboard/murid-aktif/page.tsx");
+  assert.match(page, /const pageSize = 10;/u);
+  assert.match(page, /loadActiveStudentPage\(access, filters, requested, pageSize\)/u);
+  assert.match(page, /<Pagination[\s\S]*size=\{pageSize\}/u);
+  assert.doesNotMatch(page, /Monitoring Sekolah|schoolMonitoring|overview\.bySchool/u);
+});
+
 test("country options render inside the native active-student dialog", () => {
   const popover = source("components/ui/popover.tsx");
   const countryCombobox = source("components/alumni/country-combobox.tsx");

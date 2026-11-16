@@ -5,7 +5,6 @@ import { z } from "zod";
 import { createAdminClient, invitationRedirect } from "@/lib/users/admin";
 import { createClient } from "@/lib/supabase/server";
 import { consumeLoginAttempt } from "@/lib/auth/login-rate-limit";
-import { consumeRecoveryAttempt } from "@/lib/auth/recovery-rate-limit";
 import {
   beginSchoolMailAttempt,
   finishSchoolMailAttempt,
@@ -21,12 +20,14 @@ import {
 } from "@/lib/auth/school-auth";
 import { schoolActivationTokenTtlSeconds } from "@/lib/auth/school-activation";
 import {
+  logSchoolAuthEvent,
   logSchoolAuthFailure,
   schoolAuthCorrelationId,
   type SchoolAuthOperation,
   type SchoolAuthStage,
 } from "@/lib/auth/school-auth-diagnostics";
 import { withAuthFlowContext } from "@/lib/auth/auth-flow-context";
+import { recoveryAcceptedMessage } from "@/lib/auth/recovery";
 
 async function clientAddress() {
   const h = await headers();
@@ -49,7 +50,6 @@ function failure(
     retryAfter?: number;
   },
 ): SchoolAuthResult {
-  logSchoolAuthFailure({ ...context, error });
   const code =
     error && typeof error === "object" && "code" in error ? error.code : null;
   const providerLimited = providerRateLimited(error);
@@ -67,6 +67,13 @@ function failure(
   const providerFailure = ["auth_invite", "auth_recovery"].includes(
     context.stage,
   );
+  logSchoolAuthFailure({
+    ...context,
+    error,
+    rateLimit: source,
+    retryAfter,
+    ...(providerFailure ? { providerOutcome: "rejected" as const } : {}),
+  });
   const failureKind = configuration
     ? "configuration"
     : source === "application"
@@ -85,11 +92,19 @@ function failure(
     message: configuration
       ? "Konfigurasi autentikasi sekolah belum lengkap. Hubungi pengelola aplikasi."
       : source === "application"
-        ? `Batas permintaan dari jaringan ini tercapai. Coba lagi dalam ${retryAfter ?? 1} detik.`
+        ? retryAfter === undefined
+          ? "Batas permintaan dari jaringan ini tercapai. Silakan coba kembali beberapa saat lagi."
+          : `Batas permintaan dari jaringan ini tercapai. Coba lagi dalam ${retryAfter} detik.`
         : source === "database"
-          ? `Permintaan aktivasi sekolah ini masih dalam masa tunggu. Coba lagi dalam ${retryAfter ?? 1} detik.`
+          ? retryAfter === undefined
+            ? context.operation === "recovery"
+              ? "Permintaan pemulihan kata sandi masih dalam masa tunggu. Silakan coba kembali beberapa saat lagi."
+              : "Permintaan aktivasi masih dalam masa tunggu. Silakan coba kembali beberapa saat lagi."
+            : context.operation === "recovery"
+              ? `Permintaan pemulihan kata sandi masih dalam masa tunggu. Coba lagi dalam ${retryAfter} detik.`
+              : `Permintaan aktivasi masih dalam masa tunggu. Coba lagi dalam ${retryAfter} detik.`
           : source === "provider"
-            ? "Layanan Auth sedang membatasi pengiriman email. Waktu tunggu tidak diberikan oleh layanan; tunggu beberapa saat lalu coba lagi."
+            ? "Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi."
             : invalidAccountState
               ? "Status akun sekolah tidak mengizinkan permintaan ini. Cari sekolah kembali atau hubungi Dinas jika status belum sesuai."
               : providerFailure
@@ -136,6 +151,24 @@ async function schoolRetryAfter(
     : undefined;
 }
 
+const recoveryStatusSchema = z.object({
+  retry_after: z.number().nullable(),
+});
+
+async function schoolRecoveryRetryAfter(
+  admin: ReturnType<typeof createAdminClient>,
+  npsn: string,
+) {
+  const { data, error } = await admin.rpc("school_recovery_status", {
+    p_npsn: npsn,
+  });
+  if (error) return undefined;
+  const parsed = recoveryStatusSchema.safeParse(data);
+  return parsed.success
+    ? Math.max(0, Math.ceil(parsed.data.retry_after ?? 0))
+    : undefined;
+}
+
 export async function lookupSchool(input: unknown): Promise<SchoolAuthResult> {
   const parsed = npsnSchema.safeParse(input);
   if (!parsed.success)
@@ -167,18 +200,32 @@ export async function lookupSchool(input: unknown): Promise<SchoolAuthResult> {
     const activationEligible = ["UNCLAIMED", "PENDING_ACTIVATION"].includes(
       school.status,
     );
-    const clientRetryAfter = activationEligible
-      ? getSchoolMailClientRetryAfter(`activation:ip:${address}`)
-      : 0;
+    const recoveryEligible = school.status === "ACTIVE";
+    const operation = recoveryEligible ? "recovery" : "activation";
+    const clientRetryAfter =
+      activationEligible || recoveryEligible
+        ? getSchoolMailClientRetryAfter(`${operation}:ip:${address}`)
+        : 0;
+    const databaseRetryAfter = activationEligible
+      ? school.retry_after
+      : recoveryEligible
+        ? ((await schoolRecoveryRetryAfter(admin, school.npsn)) ?? 0)
+        : 0;
     return {
       success: true,
       school,
       cooldowns: {
-        school: activationEligible ? school.retry_after : 0,
+        school: databaseRetryAfter,
         client: clientRetryAfter,
       },
-      ...(clientRetryAfter
-        ? { retryAfter: clientRetryAfter, rateLimit: "application" as const }
+      ...(Math.max(databaseRetryAfter, clientRetryAfter)
+        ? {
+            retryAfter: Math.max(databaseRetryAfter, clientRetryAfter),
+            rateLimit:
+              clientRetryAfter > databaseRetryAfter
+                ? ("application" as const)
+                : ("database" as const),
+          }
         : {}),
     };
   } catch (error) {
@@ -228,7 +275,8 @@ export async function requestSchoolActivation(
       );
     const applicationToken = attempt.token;
 
-    let applicationOutcome: "delivered" | "failed" | "released" = "failed";
+    let applicationOutcome: "delivered" | "failed" | "released" =
+      "released";
     let applicationFinished = false;
     function finishApplication(outcome: "delivered" | "failed" | "released") {
       if (applicationFinished) return { settled: false, retryAfter: 0 };
@@ -251,8 +299,7 @@ export async function requestSchoolActivation(
             { operation: "activation", stage, correlationId },
             {
               source: "database",
-              retryAfter:
-                (await schoolRetryAfter(admin, parsed.data.npsn)) ?? 1,
+              retryAfter: await schoolRetryAfter(admin, parsed.data.npsn),
             },
           );
         }
@@ -263,6 +310,7 @@ export async function requestSchoolActivation(
         });
       }
       const state = requestSchema.parse(prepared.data);
+      let providerAccepted = false;
       let delivered = false;
       try {
         let deliveredUserId = state.user_id;
@@ -278,19 +326,30 @@ export async function requestSchoolActivation(
           const sent = await supabase.auth.resetPasswordForEmail(state.email, {
             redirectTo: recoveryRedirectTo,
           });
-          if (sent.error)
+          if (sent.error) {
+            applicationOutcome = "failed";
             return failure(sent.error, {
               operation: "activation",
               stage,
               correlationId,
             });
+          }
+          providerAccepted = true;
+          applicationOutcome = "delivered";
+          logSchoolAuthEvent({
+            operation: "activation",
+            stage,
+            correlationId,
+            providerOutcome: "accepted",
+          });
         } else {
           stage = "auth_invite";
           const sent = await admin.auth.admin.inviteUserByEmail(state.email, {
             redirectTo,
             data: { school_activation: true },
           });
-          if (sent.error || !sent.data.user)
+          if (sent.error || !sent.data.user) {
+            applicationOutcome = "failed";
             return failure(
               sent.error,
               { operation: "activation", stage, correlationId },
@@ -298,6 +357,15 @@ export async function requestSchoolActivation(
                 ? { source: "provider" }
                 : undefined,
             );
+          }
+          providerAccepted = true;
+          applicationOutcome = "delivered";
+          logSchoolAuthEvent({
+            operation: "activation",
+            stage,
+            correlationId,
+            providerOutcome: "accepted",
+          });
           if (deliveredUserId && deliveredUserId !== sent.data.user.id)
             return failure(
               { code: "school_activation_identity_mismatch" },
@@ -312,7 +380,6 @@ export async function requestSchoolActivation(
             correlationId,
           });
 
-        applicationOutcome = "delivered";
         stage = "bind_rpc";
         const bound = await admin.rpc("school_activation_bind", {
           p_request_id: state.request_id,
@@ -343,7 +410,7 @@ export async function requestSchoolActivation(
               : "database",
         };
       } finally {
-        if (!delivered) {
+        if (!delivered && !providerAccepted) {
           try {
             const cancelled = await admin.rpc("school_activation_cancel", {
               p_request_id: state.request_id,
@@ -388,44 +455,136 @@ export async function requestSchoolRecovery(
       "school_recovery",
     );
     const admin = createAdminClient();
+    const rateLimitKey = `recovery:ip:${await clientAddress()}`;
     stage = "rate_limit";
-    if (!consumeRecoveryAttempt(`school:${await clientAddress()}`))
+    const attempt = beginSchoolMailAttempt(rateLimitKey);
+    if (!attempt.allowed)
       return failure(
-        { code: "55P03" },
+        { code: "local_rate_limit" },
         { operation: "recovery", stage, correlationId },
+        { source: "application", retryAfter: attempt.retryAfter },
       );
-    stage = "reserve_rpc";
-    const resolved = await admin.rpc("school_recovery_request", {
-      p_npsn: parsed.data,
-    });
-    if (resolved.error)
-      return failure(resolved.error, {
-        operation: "recovery",
-        stage,
-        correlationId,
+    const applicationToken = attempt.token;
+    let applicationOutcome: "delivered" | "failed" | "released" =
+      "released";
+    let applicationFinished = false;
+    function finishApplication(outcome: "delivered" | "failed" | "released") {
+      if (applicationFinished) return { settled: false, retryAfter: 0 };
+      applicationFinished = true;
+      return finishSchoolMailAttempt(rateLimitKey, applicationToken, outcome);
+    }
+    try {
+      stage = "reserve_rpc";
+      const resolved = await admin.rpc("school_recovery_request", {
+        p_npsn: parsed.data,
       });
-    if (resolved.data) {
-      const { email } = z
-        .object({ email: schoolEmailSchema })
-        .parse(resolved.data);
-      const supabase = await createClient();
-      stage = "auth_recovery";
-      const sent = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
-      });
-      if (sent.error)
-        return failure(sent.error, {
+      if (resolved.error) {
+        if (errorCode(resolved.error) === "55P03")
+          return failure(
+            resolved.error,
+            { operation: "recovery", stage, correlationId },
+            {
+              source: "database",
+              retryAfter: await schoolRecoveryRetryAfter(admin, parsed.data),
+            },
+          );
+        return failure(resolved.error, {
           operation: "recovery",
           stage,
           correlationId,
         });
+      }
+      if (!resolved.data)
+        return { success: true, message: recoveryAcceptedMessage };
+
+      const state = z
+        .object({ email: schoolEmailSchema, operation_id: z.uuid() })
+        .parse(resolved.data);
+      let providerAccepted = false;
+      try {
+        const supabase = await createClient();
+        stage = "auth_recovery";
+        const sent = await supabase.auth.resetPasswordForEmail(state.email, {
+          redirectTo,
+        });
+        if (sent.error) {
+          applicationOutcome = "failed";
+          return failure(
+            sent.error,
+            { operation: "recovery", stage, correlationId },
+            providerRateLimited(sent.error)
+              ? { source: "provider" }
+              : undefined,
+          );
+        }
+        providerAccepted = true;
+        applicationOutcome = "delivered";
+        logSchoolAuthEvent({
+          operation: "recovery",
+          stage,
+          correlationId,
+          providerOutcome: "accepted",
+        });
+        stage = "bind_rpc";
+        const bound = await admin.rpc("school_recovery_bind", {
+          p_npsn: parsed.data,
+          p_operation_id: state.operation_id,
+        });
+        if (bound.error || bound.data !== true)
+          return failure(bound.error ?? { code: "recovery_bind_rejected" }, {
+            operation: "recovery",
+            stage,
+            correlationId,
+          });
+
+        const applicationRetryAfter =
+          finishApplication("delivered").retryAfter;
+        const databaseRetryAfter =
+          (await schoolRecoveryRetryAfter(admin, parsed.data)) ?? 60;
+        return {
+          success: true,
+          message: recoveryAcceptedMessage,
+          retryAfter: Math.max(applicationRetryAfter, databaseRetryAfter),
+          cooldowns: {
+            school: databaseRetryAfter,
+            client: applicationRetryAfter,
+          },
+          rateLimit:
+            applicationRetryAfter > databaseRetryAfter
+              ? "application"
+              : "database",
+        };
+      } finally {
+        if (!providerAccepted) {
+          try {
+            const cancelled = await admin.rpc("school_recovery_cancel", {
+              p_npsn: parsed.data,
+              p_operation_id: state.operation_id,
+            });
+            if (cancelled.error || cancelled.data !== true)
+              logSchoolAuthFailure({
+                operation: "recovery",
+                stage: "cancel_rpc",
+                correlationId,
+                error: cancelled.error ?? {
+                  code: "recovery_cancel_rejected",
+                },
+                providerOutcome: "rejected",
+              });
+          } catch (error) {
+            logSchoolAuthFailure({
+              operation: "recovery",
+              stage: "cancel_rpc",
+              correlationId,
+              error,
+              providerOutcome: "rejected",
+            });
+          }
+        }
+      }
+    } finally {
+      if (!applicationFinished) finishApplication(applicationOutcome);
     }
-    return {
-      success: true,
-      message:
-        "Jika akun sekolah aktif, permintaan pemulihan dikirim ke email sekolah yang terverifikasi. Periksa Kotak Masuk atau Spam.",
-      retryAfter: 60,
-    };
   } catch (error) {
     return failure(error, { operation: "recovery", stage, correlationId });
   }

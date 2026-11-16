@@ -7,7 +7,7 @@ export const recoveryEmailSchema = z
   .pipe(z.email("Masukkan alamat email yang valid.").max(254, "Masukkan alamat email yang valid."));
 
 export const recoveryAcceptedMessage =
-  "Jika email terdaftar, tautan pemulihan akan dikirim. Periksa Kotak Masuk atau Spam.";
+  "Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.";
 export const recoveryUnavailableMessage =
   "Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.";
 

@@ -1,7 +1,7 @@
 import { alumniListPath, alumniFormPath } from "@/lib/alumni/navigation";
 import Link from "next/link";
 import { requireAccess } from "@/lib/auth/access";
-import { loadMonitoring } from "@/lib/monitoring/data";
+import { loadMonitoringOverview } from "@/lib/monitoring/data";
 import {
   filterRows,
   parseFilters,
@@ -24,7 +24,7 @@ export default async function AlumniPage({
   const filters = parseFilters(params);
   const returnTo = alumniListPath(params);
   if (access.canWrite) filters.school = "";
-  const all = await loadMonitoring(access);
+  const all = await loadMonitoringOverview(access);
   const rows = filterRows(all, filters);
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/.test(params.page)

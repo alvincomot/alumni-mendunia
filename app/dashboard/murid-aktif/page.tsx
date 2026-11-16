@@ -1,8 +1,9 @@
 import { requireAccess } from "@/lib/auth/access";
-import { loadActiveStudents } from "@/lib/active-students/data";
 import {
-  activeStudentSummary,
-  filterActiveStudents,
+  loadActiveStudentOverview,
+  loadActiveStudentPage,
+} from "@/lib/active-students/data";
+import {
   parseActiveStudentFilters,
   type ActiveStudentSearchParams,
 } from "@/lib/active-students/model";
@@ -20,7 +21,7 @@ import { Pagination } from "@/components/data/pagination";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-const pageSize = 20;
+const pageSize = 10;
 
 export default async function ActiveStudentsPage({
   searchParams,
@@ -31,36 +32,33 @@ export default async function ActiveStudentsPage({
   const params = await searchParams;
   const filters = parseActiveStudentFilters(params);
   if (access.canWrite) filters.school = "";
-  const allRows = await loadActiveStudents(access);
-  const rows = filterActiveStudents(allRows, filters);
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/u.test(params.page)
       ? Number(params.page)
       : 1;
-  const page = Math.min(
-    Math.max(requested, 1),
-    Math.max(1, Math.ceil(rows.length / pageSize)),
-  );
-  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const crossSchool = !access.canWrite;
 
-  let school = { name: access.schoolName ?? "Sekolah", npsn: "-" };
-  if (access.canWrite && access.schoolId) {
-    const result = await access.supabase
-      .from("schools")
-      .select("name, npsn")
-      .eq("id", access.schoolId)
-      .maybeSingle();
-    if (result.error || !result.data)
-      throw new Error("Identitas sekolah tidak tersedia");
-    school = result.data;
-  }
-
-  const summary = activeStudentSummary(rows);
-  const schoolMonitoring = [...summary.bySchool.values()].sort(
-    (left, right) =>
-      right.total - left.total || left.name.localeCompare(right.name, "id-ID"),
-  );
+  const schoolPromise =
+    access.canWrite && access.schoolId
+      ? access.supabase
+          .from("schools")
+          .select("name, npsn")
+          .eq("id", access.schoolId)
+          .maybeSingle()
+      : Promise.resolve({
+          data: { name: access.schoolName ?? "Sekolah", npsn: "-" },
+          error: null,
+        });
+  const [pageResult, overview, schoolResult] = await Promise.all([
+    loadActiveStudentPage(access, filters, requested, pageSize),
+    loadActiveStudentOverview(access, filters),
+    schoolPromise,
+  ]);
+  if (schoolResult.error || !schoolResult.data)
+    throw new Error("Identitas sekolah tidak tersedia");
+  const school = schoolResult.data;
+  const visibleRows = pageResult.rows;
+  const page = pageResult.page;
 
   return (
     <div className="mx-auto w-full max-w-[96rem]">
@@ -83,22 +81,23 @@ export default async function ActiveStudentsPage({
       </header>
 
       <div className="mt-6">
-        <ActiveStudentSummary rows={rows} crossSchool={crossSchool} />
+        <ActiveStudentSummary overview={overview} crossSchool={crossSchool} />
       </div>
 
       <ActiveStudentFilterForm
-        rows={allRows}
+        schools={overview.filterSchools}
+        years={overview.filterYears}
         values={filters}
         showSchools={crossSchool}
       />
 
       {crossSchool && (
         <div className="mb-6">
-          <ActiveStudentDistributions rows={rows} />
+          <ActiveStudentDistributions overview={overview} />
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {pageResult.total === 0 ? (
         <section className="rounded-xl border bg-card p-6">
           <h2 className="type-section-title text-primary">
             Belum ada murid sesuai filter
@@ -188,41 +187,9 @@ export default async function ActiveStudentsPage({
         path="/dashboard/murid-aktif"
         params={filters}
         page={page}
-        total={rows.length}
+        total={pageResult.total}
         size={pageSize}
       />
-
-      {crossSchool && (
-        <section className="mt-6 rounded-xl border bg-card p-5 sm:p-6" aria-labelledby="school-monitoring-title">
-          <h2 id="school-monitoring-title" className="type-section-title text-primary">Monitoring Sekolah</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Sekolah diurutkan berdasarkan jumlah murid berminat terbanyak.</p>
-          {schoolMonitoring.length === 0 ? (
-            <p className="mt-5 text-sm text-muted-foreground">Belum ada sekolah sesuai filter.</p>
-          ) : (
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="border-b text-primary">
-                  <tr>
-                    {["Nama Sekolah", "NPSN", "Total Murid", "Aktif Pelatihan", "Selesai Pelatihan", "Sudah Penempatan"].map((label) => <th key={label} scope="col" className="px-3 py-3">{label}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {schoolMonitoring.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0">
-                      <th scope="row" className="px-3 py-3 font-medium">{item.name}</th>
-                      <td className="px-3 py-3 tabular-nums">{item.npsn}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.total}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.activeTraining}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.completedTraining}</td>
-                      <td className="px-3 py-3 tabular-nums">{item.placed}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }

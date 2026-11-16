@@ -77,10 +77,16 @@ test("school authentication diagnostics omit secrets and raw provider messages",
         message: "provider rejected private@example.test token=secret",
         url: "https://private.example.test/token",
       },
+      rateLimit: "provider",
+      retryAfter: 37.2,
+      providerOutcome: "rejected",
     });
     const output = JSON.stringify(entries);
     assert.match(output, /smtp_failure/);
     assert.match(output, /auth_invite/);
+    assert.match(output, /provider/);
+    assert.match(output, /retry_after.*38/);
+    assert.match(output, /provider_outcome.*rejected/);
     assert.doesNotMatch(
       output,
       /private@example|token=secret|private\.example/,
@@ -122,6 +128,17 @@ function harness(config = {}) {
           },
           error: null,
         };
+      if (name === "school_recovery_status")
+        return {
+          data: {
+            retry_after:
+              config.recoveryDatabaseRetryAfter ??
+              (calls.rpc.some(([rpc]) => rpc === "school_recovery_bind")
+                ? 60
+                : 0),
+          },
+          error: config.recoveryStatusError ?? null,
+        };
       if (name === "school_activation_request")
         return {
           data: {
@@ -135,8 +152,20 @@ function harness(config = {}) {
         };
       if (name === "school_recovery_request")
         return {
-          data: config.ineligible ? null : { email: "stored@example.test" },
-          error: null,
+          data: config.ineligible
+            ? null
+            : { email: "stored@example.test", operation_id: operationId },
+          error: config.recoveryRpcError ?? null,
+        };
+      if (name === "school_recovery_bind")
+        return {
+          data: config.recoveryBindError ? null : true,
+          error: config.recoveryBindError ?? null,
+        };
+      if (name === "school_recovery_cancel")
+        return {
+          data: config.recoveryCancelResult ?? true,
+          error: config.recoveryCancelError ?? null,
         };
       if (name === "school_activation_cancel")
         return { data: true, error: config.cancelError ?? null };
@@ -163,15 +192,9 @@ function harness(config = {}) {
         return config.allowed !== false;
       },
     },
-    "@/lib/auth/recovery-rate-limit": {
-      consumeRecoveryAttempt: () => {
-        calls.rateLimit.push("recovery");
-        return config.allowed !== false;
-      },
-    },
     "@/lib/auth/school-mail-rate-limit": {
       beginSchoolMailAttempt: (key) => {
-        calls.rateLimit.push("activation");
+        calls.rateLimit.push(key.startsWith("recovery:") ? "recovery" : "activation");
         calls.rateLimitKeys.push(key);
         return config.allowed === false
           ? {
@@ -188,8 +211,10 @@ function harness(config = {}) {
           retryAfter: config.applicationSuccessRetryAfter ?? 0,
         };
       },
-      getSchoolMailClientRetryAfter: () =>
-        config.applicationLookupRetryAfter ?? 0,
+      getSchoolMailClientRetryAfter: (key) =>
+        key.startsWith("recovery:")
+          ? (config.recoveryApplicationLookupRetryAfter ?? 0)
+          : (config.applicationLookupRetryAfter ?? 0),
     },
     "@/lib/auth/school-activation": {
       schoolActivationTokenTtlSeconds: () => {
@@ -203,6 +228,7 @@ function harness(config = {}) {
     "@/lib/auth/school-auth-diagnostics": {
       schoolAuthCorrelationId: () => "00000000-0000-4000-8000-000000000099",
       logSchoolAuthFailure: (input) => calls.logs.push(input),
+      logSchoolAuthEvent: (input) => calls.logs.push(input),
     },
     "@/lib/auth/auth-flow-context": {
       withAuthFlowContext: (destination, context) => {
@@ -210,6 +236,10 @@ function harness(config = {}) {
         url.searchParams.set("auth_context", context);
         return url.toString();
       },
+    },
+    "@/lib/auth/recovery": {
+      recoveryAcceptedMessage:
+        "Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.",
     },
     "@/lib/users/admin": {
       createAdminClient: () => admin,
@@ -278,6 +308,24 @@ test("lookup keeps persistent per-school cooldown separate from the client limit
     school: 0,
     client: 0,
   });
+});
+test("ACTIVE lookup uses recovery timing and ignores stale activation timing", async () => {
+  const h = harness({
+    status: "ACTIVE",
+    databaseRetryAfter: 1,
+    recoveryDatabaseRetryAfter: 0,
+    applicationLookupRetryAfter: 713,
+    recoveryApplicationLookupRetryAfter: 0,
+  });
+  const result = await h.lookupSchool("22222222");
+  assert.equal(result.school.status, "ACTIVE");
+  assert.equal(result.school.retry_after, 1);
+  assert.deepEqual(result.cooldowns, { school: 0, client: 0 });
+  assert.equal(result.retryAfter, undefined);
+  assert.deepEqual(h.calls.rpc, [
+    ["school_auth_lookup", { p_npsn: "22222222" }],
+    ["school_recovery_status", { p_npsn: "22222222" }],
+  ]);
 });
 test("different normalized NPSNs never share the ordinary school cooldown", async () => {
   const h = harness({
@@ -422,7 +470,7 @@ test("configuration, cooldown and SMTP failures cannot report email success or e
       assert.equal(h.calls.rpc.length, 0);
     if (config.badOrigin || config.ttlError)
       assert.equal(h.calls.rateLimit.length, 0);
-    if (config.mailError || config.bindError)
+    if (config.mailError)
       assert.deepEqual(h.calls.rpc.at(-1), [
         "school_activation_cancel",
         {
@@ -430,6 +478,11 @@ test("configuration, cooldown and SMTP failures cannot report email success or e
           p_operation_id: operationId,
         },
       ]);
+    if (config.bindError)
+      assert.equal(
+        h.calls.rpc.some(([name]) => name === "school_activation_cancel"),
+        false,
+      );
   }
 });
 test("activation calls the hosted RPC with its exact three named parameters", async () => {
@@ -529,7 +582,10 @@ test("provider limits are identified without inventing a new 60 second cooldown"
   assert.equal(result.rateLimit, "provider");
   assert.equal(result.failureKind, "auth_rate_limit");
   assert.equal(result.retryAfter, undefined);
-  assert.match(result.message, /Waktu tunggu tidak diberikan/);
+  assert.equal(
+    result.message,
+    "Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi.",
+  );
   assert.equal(h.calls.rateLimit.at(-1), "finish:failed");
 });
 
@@ -600,7 +656,7 @@ test("failed delivery initiation has a separate bounded budget and expires witho
   });
   assert.equal(limiter.beginSchoolMailAttempt(client, 900_001).allowed, true);
 });
-test("a mismatched Auth identity is rejected and the database reservation is cancelled", async () => {
+test("a mismatched provider identity is rejected without releasing an accepted delivery", async () => {
   const differentUser = "00000000-0000-4000-8000-000000000004";
   const h = harness({ existingUser: true, inviteUserId: differentUser });
   const result = await h.requestSchoolActivation({
@@ -609,21 +665,38 @@ test("a mismatched Auth identity is rejected and the database reservation is can
   });
   assert.equal(result.success, false);
   assert.equal(result.failureKind, "invalid_account_state");
-  assert.deepEqual(h.calls.rpc.at(-1), [
-    "school_activation_cancel",
-    {
-      p_request_id: requestId,
-      p_operation_id: operationId,
-    },
-  ]);
+  assert.equal(
+    h.calls.rpc.some(([name]) => name === "school_activation_cancel"),
+    false,
+  );
 });
 test("school recovery uses only the stored verified address and ineligible requests send nothing", async () => {
   const h = harness();
-  assert.equal((await h.requestSchoolRecovery("00000011")).success, true);
+  const result = await h.requestSchoolRecovery("00000011");
+  assert.deepEqual(result, {
+    success: true,
+    message:
+      "Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.",
+    retryAfter: 60,
+    cooldowns: { school: 60, client: 0 },
+    rateLimit: "database",
+  });
   assert.equal(h.calls.recovery[0][0], "stored@example.test");
   assert.equal(
     h.calls.recovery[0][1].redirectTo,
     "https://app.example.test/auth/callback?auth_context=school_recovery",
+  );
+  assert.deepEqual(h.calls.rateLimitKeys, ["recovery:ip:203.0.113.99"]);
+  assert.deepEqual(
+    h.calls.rpc.filter(([name]) => name.startsWith("school_recovery")),
+    [
+      ["school_recovery_request", { p_npsn: "00000011" }],
+      [
+        "school_recovery_bind",
+        { p_npsn: "00000011", p_operation_id: operationId },
+      ],
+      ["school_recovery_status", { p_npsn: "00000011" }],
+    ],
   );
   const invalid = harness();
   assert.equal(
@@ -642,4 +715,73 @@ test("school recovery uses only the stored verified address and ineligible reque
     true,
   );
   assert.equal(unavailable.calls.recovery.length, 0);
+});
+
+test("school recovery reports authoritative application and database retry durations", async () => {
+  const application = harness({
+    allowed: false,
+    applicationRetryAfter: 713,
+  });
+  assert.deepEqual(await application.requestSchoolRecovery("00000011"), {
+    success: false,
+    message:
+      "Batas permintaan dari jaringan ini tercapai. Coba lagi dalam 713 detik.",
+    retryAfter: 713,
+    rateLimit: "application",
+    failureKind: "application_rate_limit",
+  });
+  assert.equal(application.calls.rpc.length, 0);
+
+  const database = harness({
+    recoveryRpcError: { code: "55P03" },
+    recoveryDatabaseRetryAfter: 17,
+  });
+  assert.deepEqual(await database.requestSchoolRecovery("00000011"), {
+    success: false,
+    message:
+      "Permintaan pemulihan kata sandi masih dalam masa tunggu. Coba lagi dalam 17 detik.",
+    retryAfter: 17,
+    rateLimit: "database",
+    failureKind: "database_cooldown",
+  });
+  assert.equal(database.calls.recovery.length, 0);
+  assert.equal(database.calls.rateLimit.at(-1), "finish:released");
+});
+
+test("School recovery provider rejection releases its database reservation without inventing a cooldown", async () => {
+  for (const mailError of [
+    { code: "smtp_failure" },
+    { code: "over_email_send_rate_limit", status: 429 },
+  ]) {
+    const h = harness({ mailError });
+    const result = await h.requestSchoolRecovery("00000011");
+    assert.equal(result.success, false);
+    assert.equal(result.retryAfter, undefined);
+    assert.deepEqual(h.calls.rpc.at(-1), [
+      "school_recovery_cancel",
+      { p_npsn: "00000011", p_operation_id: operationId },
+    ]);
+    assert.equal(h.calls.rateLimit.at(-1), "finish:failed");
+    if (mailError.status === 429) {
+      assert.equal(result.rateLimit, "provider");
+      assert.equal(
+        result.message,
+        "Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi.",
+      );
+    } else {
+      assert.equal(result.failureKind, "provider_failure");
+    }
+  }
+});
+
+test("School recovery leaves an accepted provider reservation fenced when binding fails", async () => {
+  const h = harness({ recoveryBindError: { code: "bind_unavailable" } });
+  const result = await h.requestSchoolRecovery("00000011");
+  assert.equal(result.success, false);
+  assert.equal(result.failureKind, "unexpected");
+  assert.equal(
+    h.calls.rpc.some(([name]) => name === "school_recovery_cancel"),
+    false,
+  );
+  assert.equal(h.calls.rateLimit.at(-1), "finish:delivered");
 });

@@ -28,11 +28,24 @@ function load(relativePath, mocks = {}) {
 }
 
 const schema = load("lib/schools/schema.ts");
-const valid = { npsn: "00123456", name: "SMK Fiktif", city: "Jakarta" };
+const valid = {
+  npsn: "00123456",
+  name: "SMK Fiktif",
+  sudin: "Jakarta Selatan I",
+};
 const schoolId = "00000000-0000-4000-8000-000000000001";
 
-test("school validation preserves leading zeros and enforces database bounds", () => {
+test("school validation preserves leading zeros and requires an official Sudin", () => {
   assert.equal(schema.schoolSchema.parse(valid).npsn, "00123456");
+  assert.equal(schema.SUDIN_OPTIONS.length, 11);
+  for (const sudin of schema.SUDIN_OPTIONS)
+    assert.equal(
+      schema.schoolSchema.safeParse({ ...valid, sudin }).success,
+      true,
+    );
+  assert.equal(schema.normalizeSudin("Jakarta Utara 2"), "Jakarta Utara II");
+  assert.equal(schema.normalizeSudin("jakarta selatan i"), "Jakarta Selatan I");
+  assert.equal(schema.normalizeSudin("Jakarta"), null);
   for (const npsn of [
     "1234567",
     "123456789",
@@ -48,8 +61,9 @@ test("school validation preserves leading zeros and enforces database bounds", (
   for (const values of [
     { name: " " },
     { name: "a".repeat(201) },
-    { city: " " },
-    { city: "a".repeat(101) },
+    { sudin: " " },
+    { sudin: "Jakarta" },
+    { sudin: "Jakarta Selatan 1" },
   ]) {
     assert.equal(
       schema.schoolSchema.safeParse({ ...valid, ...values }).success,
@@ -60,10 +74,26 @@ test("school validation preserves leading zeros and enforces database bounds", (
     schema.schoolSchema.safeParse({
       ...valid,
       name: "a".repeat(200),
-      city: "a".repeat(100),
     }).success,
     true,
   );
+});
+
+test("school CSV import accepts Sudin while preserving the existing database column", () => {
+  const importSql = fs.readFileSync(
+    path.join(testDirectory, "..", "supabase/imports/schools-import.sql"),
+    "utf8",
+  );
+  const csvHeader = fs
+    .readFileSync(
+      path.join(testDirectory, "..", "supabase/imports/schools.csv.example"),
+      "utf8",
+    )
+    .trim();
+  assert.equal(csvHeader, "npsn,name,sudin");
+  assert.match(importSql, /school_import\(npsn,name,sudin\)/);
+  assert.match(importSql, /INSERT INTO public\.schools\(npsn,name,city,is_active\)/);
+  for (const sudin of schema.SUDIN_OPTIONS) assert.match(importSql, new RegExp(sudin));
 });
 
 function harness({
@@ -181,7 +211,12 @@ test("creation defaults active; editing only writes allowed fields", async () =>
     (await h.saveSchool(null, { ...valid, is_active: false })).success,
     true,
   );
-  assert.deepEqual(h.mutations[0], ["insert", { ...valid, is_active: true }]);
+  const stored = {
+    npsn: valid.npsn,
+    name: valid.name,
+    city: valid.sudin,
+  };
+  assert.deepEqual(h.mutations[0], ["insert", { ...stored, is_active: true }]);
   assert.equal(
     (
       await h.saveSchool(schoolId, {
@@ -192,7 +227,7 @@ test("creation defaults active; editing only writes allowed fields", async () =>
     ).success,
     true,
   );
-  assert.deepEqual(h.mutations[1], ["update", valid]);
+  assert.deepEqual(h.mutations[1], ["update", stored]);
   assert.deepEqual(h.revalidated, Array(2).fill(["/dashboard/schools", "/dashboard", "/dashboard/users", "/dashboard/alumni", "/dashboard/reports", "/dashboard/alumni/[id]"]).flat());
 });
 

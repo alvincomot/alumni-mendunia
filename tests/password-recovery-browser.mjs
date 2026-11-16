@@ -84,7 +84,12 @@ const mocks = {
       await new Promise(resolve=>setTimeout(resolve,100));
       return window.fixture.schoolMailFail?{success:false,message:'Permintaan email belum dapat diproses.'}:{success:true,message:'Permintaan email diterima oleh layanan Auth.',retryAfter:60};
     }
-    export async function requestSchoolRecovery(npsn){window.fixture.schoolRecoveries.push(npsn);return {success:true,message:'Periksa email sekolah yang terverifikasi.',retryAfter:60};}
+    export async function requestSchoolRecovery(npsn){
+      window.fixture.schoolRecoveries.push(npsn);
+      if(window.fixture.schoolRecoveryMode==='database')return {success:false,message:'Permintaan pemulihan kata sandi masih dalam masa tunggu. Coba lagi dalam '+window.fixture.schoolRecoveryRetryAfter+' detik.',retryAfter:window.fixture.schoolRecoveryRetryAfter,rateLimit:'database'};
+      if(window.fixture.schoolRecoveryMode==='provider')return {success:false,message:'Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi.',rateLimit:'provider'};
+      return {success:true,message:'Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.',retryAfter:2,cooldowns:{school:2,client:0},rateLimit:'database'};
+    }
   `,
   "@/app/dashboard/schools/actions": `
     export async function getSchoolAccountDetails(){return {success:true,details:{
@@ -106,7 +111,7 @@ const compiled = await build({
       import {ToastProvider} from './components/ui/toast';
       const view=new URL(location.href).searchParams.get('view') ||
         (location.pathname==='/auth/login'?'login':'recovery');
-      window.fixture={view,requests:[],passwordUpdates:0,fail:false,required:view==='mandatory'||view==='activation',adminChanges:0,logins:[],lookups:[],activations:[],schoolRecoveries:[],schoolStatus:'ACTIVE'};
+      window.fixture={view,requests:[],passwordUpdates:0,fail:false,required:view==='mandatory'||view==='activation',adminChanges:0,logins:[],lookups:[],activations:[],schoolRecoveries:[],schoolStatus:'ACTIVE',schoolRecoveryMode:'success',schoolRecoveryRetryAfter:1};
       async function resolve(element){
         if(!React.isValidElement(element))return element;
         if(element.type?.constructor?.name==='AsyncFunction')return resolve(await element.type(element.props));
@@ -254,9 +259,25 @@ try {
     await page.getByRole("button", { name: "Masuk", exact: true }).click();
     assert.equal(await page.evaluate(() => window.fixture.destination), "/dashboard");
     await page.getByRole("button", { name: "Lupa kata sandi?" }).click();
-    await page.getByText("Periksa email sekolah yang terverifikasi.").waitFor();
+    await page.getByText("Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.").waitFor();
+    await page.getByText(/Permintaan pemulihan kata sandi tersedia kembali dalam [12] detik/).waitFor();
     assert.deepEqual(await page.evaluate(() => window.fixture.schoolRecoveries), ["00000013"]);
     assert.equal(await page.locator('input[type="email"]').count(), 0);
+    await page.waitForFunction(() => {
+      const button=[...document.querySelectorAll('button')].find(element=>element.textContent?.trim()==='Lupa kata sandi?');
+      return button && !button.disabled;
+    });
+    await page.evaluate(() => { window.fixture.schoolRecoveryMode='database'; });
+    await page.getByRole("button", { name: "Lupa kata sandi?" }).click();
+    await page.getByText("Permintaan pemulihan kata sandi masih dalam masa tunggu. Coba lagi dalam 1 detik.").waitFor();
+    assert.equal(await page.getByText(/Permintaan aktivasi.*1 detik/).count(), 0);
+    await page.waitForFunction(() => {
+      const button=[...document.querySelectorAll('button')].find(element=>element.textContent?.trim()==='Lupa kata sandi?');
+      return button && !button.disabled;
+    });
+    await page.evaluate(() => { window.fixture.schoolRecoveryMode='provider'; });
+    await page.getByRole("button", { name: "Lupa kata sandi?" }).click();
+    await page.getByText("Terlalu banyak permintaan. Silakan coba kembali beberapa saat lagi.").waitFor();
     await page.screenshot({ path: path.join(artifacts, `school-active-${width}.png`), fullPage: true });
     for (const status of ["UNCLAIMED", "PENDING_ACTIVATION", "SUSPENDED"]) {
       const backButton = page.getByRole("button", { name: "Kembali", exact: true });
@@ -342,7 +363,10 @@ try {
     await page.evaluate(() => { window.fixture.fail = false; });
     await send.click();
     await page.getByText("Periksa email Anda", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("status").textContent(), "Jika email terdaftar, tautan pemulihan akan dikirim. Periksa Kotak Masuk atau Spam.");
+    assert.equal(
+      await page.getByRole("status").textContent(),
+      "Jika akun memenuhi syarat, petunjuk pemulihan akan dikirim ke email yang terdaftar.",
+    );
     assert.equal(await page.getByRole("link", { name: "Kembali ke login" }).getAttribute("href"), "/auth/login");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.evaluate(() => document.fonts.ready);

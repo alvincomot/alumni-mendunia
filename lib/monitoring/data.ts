@@ -10,6 +10,23 @@ import type { MonitoringFilters } from "./model";
 import { z } from "zod";
 import { getCountryStorageNames } from "@/lib/countries";
 
+const overviewPlacementSchema = monitoringRowSchema.shape.placements.element.pick({
+  id: true,
+  status: true,
+  destination_country: true,
+  placement_secured: true,
+  work_sector: true,
+  is_current: true,
+});
+const overviewRowSchema = monitoringRowSchema.extend({
+  placements: z.array(overviewPlacementSchema).max(1),
+});
+const legacyOverviewRowSchema = overviewRowSchema.extend({
+  placements: z
+    .array(overviewPlacementSchema.omit({ placement_secured: true }))
+    .max(1),
+});
+
 export async function loadMonitoring(
   access: Awaited<ReturnType<typeof requireAccess>>,
 ) {
@@ -52,6 +69,126 @@ export async function loadMonitoring(
   if (new Set(parsed.map((row) => row.id)).size !== parsed.length)
     throw new Error("Data changed during pagination; reload required");
   return parsed;
+}
+
+export async function loadMonitoringOverview(
+  access: Awaited<ReturnType<typeof requireAccess>>,
+) {
+  let useLegacySchema = false;
+  const fetchPage = (start: number, end: number, legacy: boolean) => {
+    let query = access.supabase
+      .from("alumni")
+      .select(
+        legacy
+          ? "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, work_sector, is_current)"
+          : "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, placement_secured, work_sector, is_current)",
+        { count: "exact" },
+      )
+      .eq("placements.is_current", true);
+    if (access.canWrite) query = query.eq("school_id", access.schoolId!);
+    return query.order("id").range(start, end);
+  };
+  const rows = await readAllRows<unknown>(async (start, end) => {
+    let result = await fetchPage(start, end, useLegacySchema);
+    if (
+      !useLegacySchema &&
+      start === 0 &&
+      isMissingPlacementStateSchema(result.error)
+    ) {
+      useLegacySchema = true;
+      result = await fetchPage(start, end, true);
+    }
+    return result;
+  });
+  const parsed = useLegacySchema
+    ? legacyOverviewRowSchema.array().parse(rows).map((row) => ({
+        ...row,
+        placements: row.placements.map((placement) => ({
+          ...placement,
+          placement_secured: inferLegacyPlacementSecured(placement.status),
+        })),
+      }))
+    : overviewRowSchema.array().parse(rows);
+  if (new Set(parsed.map((row) => row.id)).size !== parsed.length)
+    throw new Error("Data changed during pagination; reload required");
+  return parsed.map((row) => ({
+    ...row,
+    placements: row.placements.map((placement) => ({
+      ...placement,
+      placement_provider_name: null,
+      company_name: null,
+      planned_departure: null,
+      actual_departure: null,
+      employment_start: null,
+      contract_end_date: null,
+    })),
+  }));
+}
+
+async function fetchMonitoringPage(
+  access: Awaited<ReturnType<typeof requireAccess>>,
+  page: number,
+  pageSize: number,
+  legacy: boolean,
+) {
+  let query = access.supabase
+    .from("alumni")
+    .select(
+      legacy
+        ? "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, work_sector, company_name, planned_departure, actual_departure, employment_start, contract_end_date, is_current)"
+        : "id, school_id, full_name, graduation_year, major, schools(name), placements(id, status, destination_country, placement_secured, placement_provider_name, work_sector, company_name, planned_departure, actual_departure, employment_start, contract_end_date, is_current)",
+      { count: "exact" },
+    )
+    .eq("placements.is_current", true);
+  if (access.canWrite) query = query.eq("school_id", access.schoolId!);
+  return query
+    .order("id")
+    .range((page - 1) * pageSize, page * pageSize - 1);
+}
+
+export async function loadMonitoringPage(
+  access: Awaited<ReturnType<typeof requireAccess>>,
+  requestedPage: number,
+  pageSize: number,
+) {
+  const requested = Math.max(1, requestedPage);
+  let useLegacySchema = false;
+  let result = await fetchMonitoringPage(
+    access,
+    requested,
+    pageSize,
+    useLegacySchema,
+  );
+  if (isMissingPlacementStateSchema(result.error)) {
+    useLegacySchema = true;
+    result = await fetchMonitoringPage(
+      access,
+      requested,
+      pageSize,
+      useLegacySchema,
+    );
+  }
+  if (result.error) throw new Error("Monitoring page unavailable");
+
+  const total = result.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requested, totalPages);
+  if (page !== requested) {
+    result = await fetchMonitoringPage(access, page, pageSize, useLegacySchema);
+    if (result.error) throw new Error("Monitoring page unavailable");
+  }
+
+  const rows = useLegacySchema
+    ? legacyMonitoringRowSchema.array().parse(result.data ?? []).map((row) => ({
+        ...row,
+        placements: row.placements.map((placement) => ({
+          ...placement,
+          placement_secured: inferLegacyPlacementSecured(placement.status),
+          placement_provider_name: null,
+        })),
+      }))
+    : monitoringRowSchema.array().parse(result.data ?? []);
+  return { rows, total, page };
 }
 
 export async function loadRecentActivity(

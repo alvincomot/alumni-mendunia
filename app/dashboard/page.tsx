@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requireAccess } from "@/lib/auth/access";
-import { loadMonitoring, loadRecentActivity } from "@/lib/monitoring/data";
+import {
+  loadMonitoringOverview,
+  loadRecentActivity,
+} from "@/lib/monitoring/data";
 import {
   distribution,
   filterRows,
@@ -86,7 +89,7 @@ export default async function Dashboard({
           .catch(() => ({ status: "error" as const }))
       : Promise.resolve(null);
   const [all, recent, schoolCounts, activeStudentState] = await Promise.all([
-    loadMonitoring(access),
+    loadMonitoringOverview(access),
     loadRecentActivity(access, filters),
     schoolCountsPromise,
     activeStudentSummaryPromise,

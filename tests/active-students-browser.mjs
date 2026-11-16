@@ -34,7 +34,20 @@ const mocks = {
   "next/link": `import React from 'react';export default function Link(props){return <a {...props}/>} `,
   "next/navigation": `export const useRouter=()=>({push(value){window.fixture.destination=value},replace(value){window.fixture.destination=value},refresh(){window.fixture.refreshes++}});export const usePathname=()=>'/dashboard/murid-aktif';export function redirect(value){throw Error('Unexpected redirect '+value)}`,
   "@/lib/auth/access": `export {access as requireAccess} from 'fixture:data'`,
-  "@/lib/active-students/data": `import {students} from 'fixture:data';export async function loadActiveStudents(access){if(window.fixture.empty)return [];return access.canWrite?students.filter(student=>student.school_id===access.schoolId):students}`,
+  "@/lib/active-students/data": `
+    import {school,students} from 'fixture:data';
+    const visibleRows=access=>window.fixture.empty?[]:(access.canWrite?students.filter(student=>student.school_id===access.schoolId):students);
+    export async function loadActiveStudentPage(access,filters,requestedPage,pageSize){
+      const rows=visibleRows(access);const pages=Math.max(1,Math.ceil(rows.length/pageSize));const page=Math.min(Math.max(1,requestedPage),pages);
+      return {rows:rows.slice((page-1)*pageSize,page*pageSize),total:rows.length,page};
+    }
+    export async function loadActiveStudentOverview(access){
+      const rows=visibleRows(access);const training={belum_pelatihan:0,aktif_pelatihan:0,selesai_pelatihan:0};const grades={10:0,11:0,12:0,13:0};
+      for(const row of rows){training[row.training_status]++;grades[row.grade]++;}
+      const filterSchools=access.canWrite?[school]:students.map(row=>({id:row.school_id,name:row.schools.name,npsn:row.schools.npsn})).filter((item,index,all)=>all.findIndex(candidate=>candidate.id===item.id)===index);
+      return {total:rows.length,placed:rows.filter(row=>row.placement_status==='sudah').length,schoolCount:new Set(rows.map(row=>row.school_id)).size,training,grades,filterSchools,filterYears:[...new Set(rows.map(row=>row.data_year))]};
+    }
+  `,
   "@/app/dashboard/murid-aktif/actions": `
     export async function saveActiveStudent(id,input){window.fixture.saves++;window.fixture.lastSave={id,input};await new Promise(resolve=>setTimeout(resolve,80));return {success:true,id:id??'new-id',message:id?'Data murid berhasil diperbarui.':'Data murid berhasil ditambahkan.'}}
     export async function deleteActiveStudent(id){window.fixture.deletes++;await new Promise(resolve=>setTimeout(resolve,500));return {success:true,id,message:'Data murid dihapus permanen.'}}
@@ -178,6 +191,7 @@ try {
     assert.equal(await admin.getByRole("button", { name: /^Edit /u }).count(), 0);
     assert.equal(await admin.getByRole("button", { name: /^Hapus/u }).count(), 0);
     assert.equal(await admin.getByText("Distribusi Status Pelatihan").count(), 1);
+    assert.equal(await admin.getByText("Monitoring Sekolah", { exact: true }).count(), 0);
     assert.equal(
       await admin.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       true,

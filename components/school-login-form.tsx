@@ -85,16 +85,31 @@ export function SchoolLoginForm({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const {
-    remaining: schoolCooldown,
-    apply: applySchoolCooldown,
+    remaining: activationSchoolCooldown,
+    apply: applyActivationSchoolCooldown,
   } = useServerCooldown();
   const {
-    remaining: clientCooldown,
-    apply: applyClientCooldown,
+    remaining: activationClientCooldown,
+    apply: applyActivationClientCooldown,
+  } = useServerCooldown();
+  const {
+    remaining: recoverySchoolCooldown,
+    apply: applyRecoverySchoolCooldown,
+  } = useServerCooldown();
+  const {
+    remaining: recoveryClientCooldown,
+    apply: applyRecoveryClientCooldown,
   } = useServerCooldown();
   const activationState =
     school?.status === "UNCLAIMED" || school?.status === "PENDING_ACTIVATION";
-  const activationCooldown = Math.max(schoolCooldown, clientCooldown);
+  const activationCooldown = Math.max(
+    activationSchoolCooldown,
+    activationClientCooldown,
+  );
+  const recoveryCooldown = Math.max(
+    recoverySchoolCooldown,
+    recoveryClientCooldown,
+  );
 
   useEffect(() => {
     if (!school && focusNpsnAfterChange.current) {
@@ -126,14 +141,26 @@ export function SchoolLoginForm({
       onPendingChange?.(false);
     }
   }
-  function showMailResult(result: SchoolAuthResult) {
+  function showMailResult(
+    result: SchoolAuthResult,
+    operation: "activation" | "recovery",
+  ) {
     if (result.cooldowns) {
-      applySchoolCooldown(result.cooldowns.school ?? 0);
-      applyClientCooldown(result.cooldowns.client ?? 0);
+      if (operation === "activation") {
+        applyActivationSchoolCooldown(result.cooldowns.school ?? 0);
+        applyActivationClientCooldown(result.cooldowns.client ?? 0);
+      } else {
+        applyRecoverySchoolCooldown(result.cooldowns.school ?? 0);
+        applyRecoveryClientCooldown(result.cooldowns.client ?? 0);
+      }
     } else if (result.retryAfter !== undefined) {
-      if (result.rateLimit === "application")
-        applyClientCooldown(result.retryAfter);
-      else applySchoolCooldown(result.retryAfter);
+      if (operation === "activation") {
+        if (result.rateLimit === "application")
+          applyActivationClientCooldown(result.retryAfter);
+        else applyActivationSchoolCooldown(result.retryAfter);
+      } else if (result.rateLimit === "application")
+        applyRecoveryClientCooldown(result.retryAfter);
+      else applyRecoverySchoolCooldown(result.retryAfter);
     }
     if (!result.success)
       setError(result.message ?? "Permintaan belum dapat diproses.");
@@ -157,10 +184,15 @@ export function SchoolLoginForm({
         }
         setSchool(result.school);
         onSchoolChange?.(result.school);
-        applySchoolCooldown(
-          result.cooldowns?.school ?? result.school.retry_after,
-        );
-        applyClientCooldown(result.cooldowns?.client ?? 0);
+        if (result.school.status === "ACTIVE") {
+          applyRecoverySchoolCooldown(result.cooldowns?.school ?? 0);
+          applyRecoveryClientCooldown(result.cooldowns?.client ?? 0);
+        } else {
+          applyActivationSchoolCooldown(
+            result.cooldowns?.school ?? result.school.retry_after,
+          );
+          applyActivationClientCooldown(result.cooldowns?.client ?? 0);
+        }
       });
     } else if (school.status === "UNCLAIMED") {
       const parsed = schoolEmailSchema.safeParse(email);
@@ -201,7 +233,7 @@ export function SchoolLoginForm({
         ...(activationEmail ? { email: activationEmail } : {}),
       });
       if (!active.current) return;
-      showMailResult(result);
+      showMailResult(result, "activation");
       if (result.success) {
         const pendingSchool = {
           ...school,
@@ -222,7 +254,8 @@ export function SchoolLoginForm({
     setPassword("");
     setError(null);
     setMessage(null);
-    applySchoolCooldown(0);
+    applyActivationSchoolCooldown(0);
+    applyRecoverySchoolCooldown(0);
   }
 
   return (
@@ -320,11 +353,14 @@ export function SchoolLoginForm({
             <Button
               type="button"
               variant="link"
-              disabled={pending || schoolCooldown > 0}
+              disabled={pending || recoveryCooldown > 0}
               className="-my-2 min-h-11 px-0 text-primary disabled:bg-transparent"
               onClick={() =>
                 run(async () =>
-                  showMailResult(await requestSchoolRecovery(school.npsn)),
+                  showMailResult(
+                    await requestSchoolRecovery(school.npsn),
+                    "recovery",
+                  ),
                 )
               }
             >
@@ -372,24 +408,40 @@ export function SchoolLoginForm({
           {message}
         </p>
       )}
-      {schoolCooldown > 0 && school?.status !== "SUSPENDED" && (
+      {activationSchoolCooldown > 0 && activationState && (
         <p
           aria-live="polite"
           className="text-sm tabular-nums text-muted-foreground"
         >
-          {activationState
-            ? "Permintaan aktivasi sekolah ini"
-            : "Permintaan email berikutnya"}{" "}
-          tersedia dalam {schoolCooldown} detik.
+          Permintaan aktivasi sekolah ini tersedia dalam{" "}
+          {activationSchoolCooldown} detik.
         </p>
       )}
-      {clientCooldown > 0 && activationState && (
+      {activationClientCooldown > 0 && activationState && (
         <p
           aria-live="polite"
           className="text-sm tabular-nums text-muted-foreground"
         >
           Batas permintaan dari jaringan ini tersedia kembali dalam{" "}
-          {clientCooldown} detik.
+          {activationClientCooldown} detik.
+        </p>
+      )}
+      {recoverySchoolCooldown > 0 && school?.status === "ACTIVE" && (
+        <p
+          aria-live="polite"
+          className="text-sm tabular-nums text-muted-foreground"
+        >
+          Permintaan pemulihan kata sandi tersedia kembali dalam{" "}
+          {recoverySchoolCooldown} detik.
+        </p>
+      )}
+      {recoveryClientCooldown > 0 && school?.status === "ACTIVE" && (
+        <p
+          aria-live="polite"
+          className="text-sm tabular-nums text-muted-foreground"
+        >
+          Batas permintaan pemulihan dari jaringan ini tersedia kembali dalam{" "}
+          {recoveryClientCooldown} detik.
         </p>
       )}
       {school?.status === "PENDING_ACTIVATION" ? (
