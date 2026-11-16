@@ -2,28 +2,20 @@ import { Filters, type FilterField } from "@/components/data/filters";
 import {
   placementStatusLabels,
   trainingStatusLabels,
-  type ActiveStudentRecord,
 } from "@/lib/active-students/schema";
 import type { ActiveStudentFilters } from "@/lib/active-students/model";
 
 export function ActiveStudentFilterForm({
-  rows,
+  schools,
+  years,
   values,
   showSchools,
 }: {
-  rows: ActiveStudentRecord[];
+  schools: Array<{ id: string; name: string; npsn: string }>;
+  years: number[];
   values: ActiveStudentFilters;
   showSchools: boolean;
 }) {
-  const schools = new Map(
-    rows.map((row) => [
-      row.school_id,
-      `${row.schools?.name ?? "Sekolah tidak tersedia"} · ${row.schools?.npsn ?? "NPSN tidak tersedia"}`,
-    ]),
-  );
-  const years = [...new Set(rows.map((row) => String(row.data_year)))].sort(
-    (left, right) => right.localeCompare(left),
-  );
   const fields: FilterField[] = [
     {
       name: "q",
@@ -35,9 +27,14 @@ export function ActiveStudentFilterForm({
           {
             name: "school",
             label: "Sekolah",
-            options: [...schools]
-              .map(([value, label]) => ({ value, label }))
-              .sort((left, right) => left.label.localeCompare(right.label, "id-ID")),
+            options: schools
+              .map((school) => ({
+                value: school.id,
+                label: `${school.name} · ${school.npsn}`,
+              }))
+              .sort((left, right) =>
+                left.label.localeCompare(right.label, "id-ID"),
+              ),
           },
         ]
       : []),
@@ -68,7 +65,10 @@ export function ActiveStudentFilterForm({
     {
       name: "year",
       label: "Tahun Pendataan",
-      options: years.map((year) => ({ value: year, label: year })),
+      options: years.map((year) => ({
+        value: String(year),
+        label: String(year),
+      })),
     },
   ];
   return (
@@ -80,4 +80,3 @@ export function ActiveStudentFilterForm({
     />
   );
 }
-
