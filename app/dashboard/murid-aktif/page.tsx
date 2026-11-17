@@ -40,25 +40,10 @@ export default async function ActiveStudentsPage({
       : 1;
   const crossSchool = !access.canWrite;
 
-  const schoolPromise =
-    access.canWrite && access.schoolId
-      ? access.supabase
-          .from("schools")
-          .select("name, npsn")
-          .eq("id", access.schoolId)
-          .maybeSingle()
-      : Promise.resolve({
-          data: { name: access.schoolName ?? "Sekolah", npsn: "-" },
-          error: null,
-        });
-  const [pageResult, overview, schoolResult] = await Promise.all([
+  const [pageResult, overview] = await Promise.all([
     loadActiveStudentPage(access, filters, requested, pageSize),
     loadActiveStudentOverview(access, filters),
-    schoolPromise,
   ]);
-  if (schoolResult.error || !schoolResult.data)
-    throw new Error("Identitas sekolah tidak tersedia");
-  const school = schoolResult.data;
   const visibleRows = pageResult.rows;
   const page = pageResult.page;
   const paginationFilters = {
@@ -174,10 +159,6 @@ export default async function ActiveStudentsPage({
                   <td className="px-4 py-4">
                     <StudentRowActions
                       student={student}
-                      school={{
-                        name: student.schools?.name ?? school.name,
-                        npsn: student.schools?.npsn ?? school.npsn,
-                      }}
                       canWrite={access.canWrite}
                       returnTo={returnTo}
                     />
