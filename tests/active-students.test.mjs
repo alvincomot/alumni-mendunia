@@ -526,9 +526,15 @@ test("read-only Dinas UI has detail access without edit or delete actions", () =
   const page = source("app/dashboard/murid-aktif/page.tsx");
   const detail = source("app/dashboard/murid-aktif/[id]/page.tsx");
   const actions = source("components/active-students/student-actions.tsx");
+  const editor = source("components/active-students/student-editor.tsx");
   assert.match(page, /canWrite=\{access\.canWrite\}/u);
+  assert.doesNotMatch(page, /schoolPromise|school=\{/u);
   assert.match(actions, /activeStudentDetailPath\(student\.id, returnTo\)/u);
   assert.doesNotMatch(actions, /DetailDialog|showModal\(\)[\s\S]*Riwayat perubahan/u);
+  assert.doesNotMatch(
+    actions,
+    /import \{ StudentDialog \}|<StudentDialog|Edit \$\{student\.full_name\}/u,
+  );
   assert.match(actions, /\{canWrite && \(/u);
   assert.match(actions, /<DeleteStudentDialog student=\{student\} \/>/u);
   assert.match(actions, /Hapus Permanen/u);
@@ -537,7 +543,11 @@ test("read-only Dinas UI has detail access without edit or delete actions", () =
   assert.match(detail, /loadActiveStudentDetail\(access, id\)/u);
   assert.match(detail, /!access\.canWrite && " · Akses hanya baca"/u);
   assert.match(detail, /<ActiveStudentHistoryList history=\{history\}/u);
-  assert.match(detail, /<StudentDialog[\s\S]*triggerLabel="Edit data murid"/u);
+  assert.match(detail, /<StudentIdentityEditor student=\{student\} \/>/u);
+  assert.match(detail, /<StudentProgramEditor student=\{student\} \/>/u);
+  assert.match(editor, /Form edit identitas murid/u);
+  assert.match(editor, /Form edit pelatihan dan penempatan/u);
+  assert.doesNotMatch(editor, /<dialog|showModal\(/u);
 });
 
 test("active student detail navigation preserves safe list filters", () => {
@@ -641,13 +651,11 @@ test("active student overview uses semantic metric icons and compact visible fil
     assert.match(summary, new RegExp(`icon: "${icon}"`, "u"));
 });
 
-test("country options render inside the native active-student dialog", () => {
-  const popover = source("components/ui/popover.tsx");
-  const countryCombobox = source("components/alumni/country-combobox.tsx");
-  const studentDialog = source("components/active-students/student-dialog.tsx");
-  assert.match(popover, /Portal container=\{portalContainer\}/u);
-  assert.match(countryCombobox, /portalContainer=\{portalContainer\}/u);
-  assert.match(studentDialog, /portalContainer=\{dialogElement\}/u);
+test("country options render from the inline active-student editor", () => {
+  const editor = source("components/active-students/student-editor.tsx");
+  assert.match(editor, /<CountryCombobox/u);
+  assert.match(editor, /ariaLabel="Negara penempatan"/u);
+  assert.doesNotMatch(editor, /portalContainer=|<dialog/u);
 });
 
 test("migration protects school scope, immutable year, history and PII-free deletion audit", () => {
