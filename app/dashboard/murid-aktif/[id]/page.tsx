@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveStudentHistory } from "@/app/dashboard/murid-aktif/actions";
+import { DeleteStudentDialog } from "@/components/active-students/student-actions";
 import {
-  CompleteTrainingDialog,
-  DeleteStudentDialog,
-} from "@/components/active-students/student-actions";
+  StudentIdentityEditor,
+  StudentProgramEditor,
+} from "@/components/active-students/student-editor";
 import { ActiveStudentHistoryList } from "@/components/active-students/student-history";
-import { StudentDialog } from "@/components/active-students/student-dialog";
 import { DashboardIcon, type DashboardIconName } from "@/components/dashboard-icon";
 import { Button } from "@/components/ui/button";
 import { loadActiveStudentDetail } from "@/lib/active-students/data";
@@ -169,6 +169,7 @@ export default async function ActiveStudentDetailPage({
             Dikonfirmasi {formatDate(student.parent_consent_at)}
           </DetailItem>
         </dl>
+        {access.canWrite && <StudentIdentityEditor student={student} />}
       </section>
 
       <section
@@ -216,18 +217,7 @@ export default async function ActiveStudentDetailPage({
             {formatDate(student.placement_date)}
           </DetailItem>
         </dl>
-        {access.canWrite && (
-          <div className="mt-6 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:justify-end">
-            {student.training_status === "aktif_pelatihan" && (
-              <CompleteTrainingDialog student={student} />
-            )}
-            <StudentDialog
-              student={student}
-              school={school}
-              triggerLabel="Edit data murid"
-            />
-          </div>
-        )}
+        {access.canWrite && <StudentProgramEditor student={student} />}
       </section>
 
       <section
