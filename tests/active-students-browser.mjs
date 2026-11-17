@@ -360,6 +360,10 @@ try {
   });
 
   const detailLink = page.getByRole("link", { name: "Detail", exact: true });
+  assert.equal(
+    await page.getByRole("button", { name: "Edit Ayu Fiktif" }).count(),
+    0,
+  );
   assert.match(
     await detailLink.getAttribute("href"),
     /^\/dashboard\/murid-aktif\/00000000-0000-4000-8000-000000000101/u,
@@ -382,16 +386,38 @@ try {
   );
   assert.equal(await page.getByRole("dialog", { name: "Ayu Fiktif" }).count(), 0);
 
-  await page.getByRole("button", { name: "Edit Ayu Fiktif" }).click();
-  const edit = page.getByRole("dialog", { name: "Edit data murid" });
-  assert.equal(await edit.getByLabel("Tahun Pendataan (wajib)").getAttribute("readonly"), "");
-  await edit.getByLabel("Nama murid (wajib)").fill("Ayu Fiktif Diperbarui");
-  await edit.getByRole("button", { name: "Simpan" }).click();
+  await page.getByRole("button", { name: "Edit identitas murid" }).click();
+  const identityEditor = page.getByRole("form", {
+    name: "Form edit identitas murid",
+  });
+  assert.equal(await identityEditor.getByLabel("Tahun Pendataan (wajib)").count(), 0);
+  assert.equal(await page.getByRole("dialog", { name: "Edit data murid" }).count(), 0);
+  await identityEditor
+    .getByLabel("Nama murid (wajib)")
+    .fill("Ayu Fiktif Diperbarui");
+  await identityEditor.getByRole("button", { name: "Simpan perubahan" }).click();
   await page.getByText("Data murid berhasil diperbarui.", { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.fixture.saves), 1);
   assert.equal(
     await page.evaluate(() => window.fixture.lastSave.input.full_name),
     "Ayu Fiktif Diperbarui",
+  );
+
+  await page
+    .getByRole("button", { name: "Edit pelatihan dan penempatan" })
+    .click();
+  const programEditor = page.getByRole("form", {
+    name: "Form edit pelatihan dan penempatan",
+  });
+  await programEditor
+    .getByLabel("Nama LKP / Sending Organization / P3MI (wajib)")
+    .fill("LKP Fiktif Diperbarui");
+  await programEditor.getByRole("button", { name: "Simpan perubahan" }).click();
+  await page.getByText("Data murid berhasil diperbarui.", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.fixture.saves), 2);
+  assert.equal(
+    await page.evaluate(() => window.fixture.lastSave.input.provider_name),
+    "LKP Fiktif Diperbarui",
   );
 
   await page.getByRole("button", { name: "Hapus permanen Ayu Fiktif" }).click();
@@ -407,7 +433,7 @@ try {
     await page.evaluate(() => window.fixture.destination),
     "/dashboard/murid-aktif?page=2",
   );
-  console.log("PASS Data Murid Aktif two-step add, conditional fields, detail, immutable year and guarded delete");
+  console.log("PASS Data Murid Aktif two-step add, inline detail editors and guarded delete");
   console.log(`Browser artifacts: ${artifacts}`);
   await page.close();
 } finally {
