@@ -10,11 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { LoadingIndicator } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
-import { StudentDialog } from "./student-dialog";
 import { type ActiveStudentRecord } from "@/lib/active-students/schema";
 import { activeStudentDetailPath } from "@/lib/active-students/navigation";
-
-type SchoolIdentity = { name: string; npsn: string };
 
 export function DeleteStudentDialog({
   student,
@@ -186,12 +183,10 @@ export function CompleteTrainingDialog({
 
 export function StudentRowActions({
   student,
-  school,
   canWrite,
   returnTo,
 }: {
   student: ActiveStudentRecord;
-  school: SchoolIdentity;
   canWrite: boolean;
   returnTo: string;
 }) {
@@ -207,7 +202,6 @@ export function StudentRowActions({
           {student.training_status === "aktif_pelatihan" && (
             <CompleteTrainingDialog student={student} />
           )}
-          <StudentDialog student={student} school={school} />
           <DeleteStudentDialog student={student} />
         </>
       )}
