@@ -10,7 +10,7 @@
     "admin_dinas",
     "viewer_dinas"
   ],
-  "pageCount": 20,
+  "pageCount": 21,
   "handlerCount": 4,
   "pages": [
     {
@@ -324,6 +324,45 @@
       "route": "/dashboard/murid-aktif",
       "sourceFile": "app/dashboard/murid-aktif/page.tsx",
       "dynamicParameters": [],
+      "access": "authenticated",
+      "allowedRoles": [
+        "petugas_sekolah",
+        "admin_dinas",
+        "viewer_dinas"
+      ],
+      "allowedResponse": {
+        "kind": "render",
+        "statuses": [
+          200
+        ]
+      },
+      "deniedResponse": {
+        "kind": "redirect",
+        "statuses": [
+          303,
+          307,
+          308
+        ],
+        "locationPrefix": "/auth/access-denied"
+      },
+      "policySource": "requireAccess inferred from page source",
+      "roleClassifications": {
+        "petugas_sekolah": "ALLOWED",
+        "admin_dinas": "ALLOWED",
+        "viewer_dinas": "ALLOWED"
+      }
+    },
+    {
+      "route": "/dashboard/murid-aktif/[id]",
+      "sourceFile": "app/dashboard/murid-aktif/[id]/page.tsx",
+      "dynamicParameters": [
+        {
+          "name": "id",
+          "fixtureKey": "murid",
+          "catchAll": false,
+          "optional": false
+        }
+      ],
       "access": "authenticated",
       "allowedRoles": [
         "petugas_sekolah",

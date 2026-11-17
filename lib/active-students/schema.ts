@@ -3,6 +3,11 @@ import { getCanonicalCountryName } from "@/lib/countries";
 
 export const activeStudentIdSchema = z.string().uuid();
 
+export const completeActiveStudentTrainingSchema = z.object({
+  id: activeStudentIdSchema,
+  expected_updated_at: z.string().datetime({ offset: true }),
+});
+
 export const trainingStatusLabels = {
   belum_pelatihan: "Belum Pelatihan",
   aktif_pelatihan: "Aktif Pelatihan",

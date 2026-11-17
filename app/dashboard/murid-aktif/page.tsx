@@ -7,6 +7,7 @@ import {
   parseActiveStudentFilters,
   type ActiveStudentSearchParams,
 } from "@/lib/active-students/model";
+import { activeStudentListPath } from "@/lib/active-students/navigation";
 import {
   placementStatusLabels,
   trainingStatusLabels,
@@ -31,6 +32,7 @@ export default async function ActiveStudentsPage({
   const access = await requireAccess();
   const params = await searchParams;
   const filters = parseActiveStudentFilters(params);
+  filters.year = "";
   if (access.canWrite) filters.school = "";
   const requested =
     typeof params.page === "string" && /^\d{1,6}$/u.test(params.page)
@@ -59,34 +61,37 @@ export default async function ActiveStudentsPage({
   const school = schoolResult.data;
   const visibleRows = pageResult.rows;
   const page = pageResult.page;
+  const paginationFilters = {
+    q: filters.q,
+    school: filters.school,
+    grade: filters.grade,
+    training: filters.training,
+    placement: filters.placement,
+  };
+  const returnTo = activeStudentListPath({
+    ...paginationFilters,
+    page: page > 1 ? String(page) : "",
+  });
 
   return (
     <div className="mx-auto w-full max-w-[96rem]">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="type-page-title text-primary">
-            {crossSchool ? "Monitoring Murid Aktif" : "Data Murid Aktif"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {crossSchool
-              ? "Pantau perkembangan murid yang berminat bekerja ke luar negeri di seluruh sekolah."
-              : "Pendataan murid yang berminat bekerja ke luar negeri."}
-          </p>
-        </div>
-        {!crossSchool && (
+      <h1 className="sr-only">
+        {crossSchool ? "Monitoring Murid Aktif" : "Data Murid Aktif"}
+      </h1>
+      {!crossSchool && (
+        <div className="flex justify-end">
           <Button asChild>
             <Link href="/dashboard/murid-aktif/new">Tambah Murid</Link>
           </Button>
-        )}
-      </header>
+        </div>
+      )}
 
-      <div className="mt-6">
+      <div className={crossSchool ? "" : "mt-4"}>
         <ActiveStudentSummary overview={overview} crossSchool={crossSchool} />
       </div>
 
       <ActiveStudentFilterForm
         schools={overview.filterSchools}
-        years={overview.filterYears}
         values={filters}
         showSchools={crossSchool}
       />
@@ -104,7 +109,7 @@ export default async function ActiveStudentsPage({
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {crossSchool
-              ? "Ubah filter untuk melihat data sekolah atau tahun lainnya."
+              ? "Ubah filter untuk melihat data sekolah lainnya."
               : "Ubah filter atau tambahkan murid pertama untuk sekolah Anda."}
           </p>
         </section>
@@ -174,6 +179,7 @@ export default async function ActiveStudentsPage({
                         npsn: student.schools?.npsn ?? school.npsn,
                       }}
                       canWrite={access.canWrite}
+                      returnTo={returnTo}
                     />
                   </td>
                 </tr>
@@ -185,7 +191,7 @@ export default async function ActiveStudentsPage({
 
       <Pagination
         path="/dashboard/murid-aktif"
-        params={filters}
+        params={paginationFilters}
         page={page}
         total={pageResult.total}
         size={pageSize}

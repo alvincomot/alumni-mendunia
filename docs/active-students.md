@@ -19,10 +19,17 @@ sebagai dasar otorisasi.
 
 ## Antarmuka
 
-- `/dashboard/murid-aktif`: daftar, statistik, filter, detail, edit, dan hapus
-  sesuai kewenangan role. Daftar dibatasi 10 murid per halaman dengan navigasi
+- `/dashboard/murid-aktif`: daftar, statistik, filter, edit, dan hapus sesuai
+  kewenangan role. Daftar dibatasi 10 murid per halaman dengan navigasi
   Sebelumnya/Berikutnya. Tampilan lintas sekolah berfokus pada data murid dan
   tidak menampilkan tabel agregasi sekolah.
+- `/dashboard/murid-aktif/[id]`: halaman detail penuh untuk identitas,
+  pelatihan, penempatan, serta riwayat perubahan sebelum dan sesudah. Filter dan
+  posisi halaman daftar dipertahankan saat pengguna kembali.
+- Petugas Sekolah dapat menyelesaikan status `aktif_pelatihan` langsung dari
+  daftar melalui dialog konfirmasi. Server hanya menerima transisi atomik
+  `aktif_pelatihan` ke `selesai_pelatihan`; trigger yang ada mencatat riwayat
+  status dan audit log pada transaksi yang sama.
 - `/dashboard/murid-aktif/new`: form tambah dua langkah untuk Petugas Sekolah,
   dengan ringkasan input dan identitas sekolah yang diperoleh dari sesi.
 

@@ -6,6 +6,7 @@ import { getAlumniAccess } from "@/lib/alumni/access";
 import {
   activeStudentFormSchema,
   activeStudentIdSchema,
+  completeActiveStudentTrainingSchema,
   type ActiveStudentHistory,
   type ActiveStudentMutationResult,
 } from "@/lib/active-students/schema";
@@ -112,6 +113,58 @@ export async function saveActiveStudent(
       success: false,
       message:
         "Koneksi bermasalah. Periksa daftar murid sebelum mengirim ulang untuk menghindari duplikasi.",
+    };
+  }
+}
+
+export async function completeActiveStudentTraining(
+  input: unknown,
+): Promise<ActiveStudentMutationResult> {
+  try {
+    const access = await getAlumniAccess();
+    if (!access.allowed || !access.canWrite || !access.schoolId) return denied;
+
+    const parsed = completeActiveStudentTrainingSchema.safeParse(input);
+    if (!parsed.success)
+      return { success: false, message: "Data murid tidak valid." };
+
+    const { count, error } = await access.supabase
+      .from("active_students")
+      .update(
+        { training_status: "selesai_pelatihan" },
+        { count: "exact" },
+      )
+      .eq("id", parsed.data.id)
+      .eq("school_id", access.schoolId)
+      .eq("training_status", "aktif_pelatihan")
+      .eq("updated_at", parsed.data.expected_updated_at);
+
+    if (error)
+      return {
+        success: false,
+        message:
+          "Status pelatihan belum dapat diselesaikan. Silakan coba kembali.",
+      };
+    if (count !== 1)
+      return {
+        success: false,
+        refresh: true,
+        message:
+          "Status pelatihan sudah berubah. Muat ulang data sebelum mencoba kembali.",
+      };
+
+    revalidateActiveStudents();
+    return {
+      success: true,
+      id: parsed.data.id,
+      message: "Status pelatihan berhasil diselesaikan.",
+    };
+  } catch {
+    return {
+      success: false,
+      refresh: true,
+      message:
+        "Koneksi bermasalah. Muat ulang data sebelum mencoba kembali.",
     };
   }
 }

@@ -84,10 +84,11 @@ test("password fields share an accessible show and hide control without native l
   assert.match(update, /Gunakan minimal 8 karakter\./);
 });
 
-test("routine dashboard pages hide redundant headers while monitoring keeps its operational title", () => {
+test("dashboard pages hide redundant visual headers while retaining accessible titles", () => {
   const pages = [
     "app/dashboard/page.tsx",
     "app/dashboard/alumni/page.tsx",
+    "app/dashboard/murid-aktif/page.tsx",
     "app/dashboard/schools/page.tsx",
     "app/dashboard/users/page.tsx",
     "app/dashboard/reports/page.tsx",
@@ -97,8 +98,9 @@ test("routine dashboard pages hide redundant headers while monitoring keeps its 
   const reports = source("app/dashboard/reports/page.tsx");
 
   for (const page of pages) assert.match(page, /<h1 className="sr-only">/);
-  assert.match(monitoring, /<h1 className="type-page-title text-primary">Monitoring Sistem<\/h1>/);
-  assert.doesNotMatch(monitoring, /<h1 className="sr-only">Monitoring Sistem<\/h1>/);
+  assert.match(monitoring, /<h1 className="sr-only">Monitoring Sistem<\/h1>/);
+  assert.doesNotMatch(monitoring, /Pantau penggunaan aplikasi/);
+  assert.doesNotMatch(pages[2], /Pantau perkembangan murid|Pendataan murid yang/);
   assert.match(users, /<Filters[\s\S]*inlineActions/);
   assert.doesNotMatch(reports, /MonitoringFilterForm|parseFilters|filterRows/);
   assert.match(reports, /href="\/dashboard\/reports\/export"/);

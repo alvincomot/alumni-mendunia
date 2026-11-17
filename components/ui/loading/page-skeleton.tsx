@@ -45,7 +45,11 @@ export function FilterSkeleton({
     <div
       aria-hidden="true"
       className={`my-6 grid items-end gap-4 sm:grid-cols-2 ${
-        inlineActions ? "xl:grid-cols-5" : "xl:grid-cols-4"
+        inlineActions
+          ? fields === 5
+            ? "xl:grid-cols-6"
+            : "xl:grid-cols-5"
+          : "xl:grid-cols-4"
       }`}
     >
       {Array.from({ length: fields }, (_, index) => (

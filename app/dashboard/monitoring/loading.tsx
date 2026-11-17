@@ -9,7 +9,7 @@ import { requireAccess } from "@/lib/auth/access";
 export default async function MonitoringLoading() {
   await requireAccess(["admin_dinas"]);
   return (
-    <PageSkeleton label="Memuat Monitoring Sistem">
+    <PageSkeleton label="Memuat Monitoring Sistem" action showHeader={false}>
       <div
         aria-hidden="true"
         className="my-6 flex gap-1 rounded-xl border bg-card px-2"
