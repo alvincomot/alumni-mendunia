@@ -46,12 +46,11 @@ function LoginScreen({
       <section className="hidden bg-primary px-10 py-12 text-primary-foreground lg:flex lg:min-h-svh lg:flex-col lg:justify-between xl:px-16">
 
         <div className="relative z-10 my-auto max-w-xl">
-          <h1 className="type-auth-hero">
-            Pendataan alumni yang bekerja di luar negeri.
+          <h1 className="type-auth-hero text-8xl font-extrabold">
+            ALUMNI <span className="block text-8xl">SMK</span> <span className="block text-8xl">MENDUNIA</span>
           </h1>
           <p className="mt-7 max-w-lg text-lg leading-7 text-slate-300">
-            Akses terbatas untuk petugas sekolah dan pengguna Dinas Pendidikan
-            Provinsi DKI Jakarta.
+            Pendataan alumni SMK yang bekerja di luar negeri.
           </p>
         </div>
 
